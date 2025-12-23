@@ -18,3 +18,25 @@ Producer({
   "sasl.password": "<API_SECRET>"
 })
 ```
+
+## Setup (virtual environment)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt   # includes dev tools (black, ruff, pytest)
+```
+
+## Running tests
+```bash
+pytest
+```
+
+## Linting
+```bash
+ruff check .
+```
+
+## Formatting
+```bash
+black .
+```
