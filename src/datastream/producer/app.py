@@ -3,7 +3,10 @@ import json
 import time
 import random
 from datetime import datetime
+from pathlib import Path
+
 from confluent_kafka import Producer
+from jsonschema import ValidationError, validate
 
 conf = {
     "bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"],
@@ -13,6 +16,19 @@ conf = {
 STORE_ID = os.getenv("STORE_ID") or os.getenv("HOSTNAME", "store_1")
 
 producer = Producer(conf)
+
+
+def load_schema(file_name: str):
+    local_path = Path(__file__).with_name(file_name)
+    repo_path = Path(__file__).parent.parent / "schemas" / file_name
+    for path in (local_path, repo_path):
+        if path.exists():
+            with path.open() as f:
+                return json.load(f)
+    raise FileNotFoundError(f"Schema {file_name} not found")
+
+
+PRICE_SCHEMA = load_schema("price_events.json")
 
 BASE_PRICES = {
     "eggs": 2.00,
@@ -39,6 +55,13 @@ def generate_event():
 
 while True:
     event = generate_event()
+    try:
+        validate(instance=event, schema=PRICE_SCHEMA)
+    except ValidationError as exc:
+        print("Invalid event, skipping:", exc)
+        time.sleep(1)
+        continue
+
     producer.produce("price-events", json.dumps(event))
     producer.flush()
     print("Produced:", event)

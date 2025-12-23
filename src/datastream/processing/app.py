@@ -2,14 +2,30 @@ import json
 import os
 import random
 import socket
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
 from confluent_kafka import Consumer
 from google.cloud import firestore
+from jsonschema import ValidationError, validate
 
 PROCESSED_TOPIC = os.getenv("PROCESSED_TOPIC", "price-events-processed")
 PROCESSOR_ID = os.getenv("PROCESSOR_ID") or socket.gethostname()
+SCORES_COLLECTION = os.getenv("SCORES_COLLECTION", "scores")
+
+
+def load_schema(file_name: str):
+    local_path = Path(__file__).with_name(file_name)
+    repo_path = Path(__file__).parent.parent / "schemas" / file_name
+    for path in (local_path, repo_path):
+        if path.exists():
+            with path.open() as f:
+                return json.load(f)
+    raise FileNotFoundError(f"Schema {file_name} not found")
+
+
+SCORES_SCHEMA = load_schema("scores.json")
 
 
 def load_tracked_products(path: Path) -> List[str]:
@@ -37,15 +53,20 @@ def compute_total(products: List[str], event: dict) -> float:
     return round(total, 2)
 
 
-def annotate_doc(doc_id: str, anomaly: str, tracked_total: float):
+def annotate_doc(doc_id: str, anomaly: str):
     db.collection("prices").document(doc_id).set(
-        {
-            "anomaly": anomaly,
-            "tracked_total": tracked_total,
-            "processed_by": PROCESSOR_ID,
-        },
-        merge=True,
+        {"anomaly": anomaly, "processed_by": PROCESSOR_ID}, merge=True
     )
+
+
+def persist_score(store_id: str, score: float, timestamp: str):
+    payload = {"store_id": store_id, "score": score, "timestamp": timestamp}
+    try:
+        validate(instance=payload, schema=SCORES_SCHEMA)
+    except ValidationError as exc:
+        print("Invalid score payload, skipping:", exc)
+        return
+    db.collection(SCORES_COLLECTION).add(payload)
 
 
 config_path = Path(__file__).parent / "tracked_products.json"
@@ -78,5 +99,20 @@ while True:
 
     anomaly = pick_anomaly_label()
     tracked_total = compute_total(tracked_products, event)
-    annotate_doc(doc_id, anomaly, tracked_total)
-    print("Annotated doc", doc_id, "with", anomaly, tracked_total, "by", PROCESSOR_ID)
+    annotate_doc(doc_id, anomaly)
+
+    event_timestamp = event.get("timestamp") or datetime.utcnow().isoformat() + "Z"
+    store_id = event.get("store_id")
+    if store_id:
+        persist_score(store_id, tracked_total, event_timestamp)
+
+    print(
+        "Annotated doc",
+        doc_id,
+        "with",
+        anomaly,
+        "score",
+        tracked_total,
+        "by",
+        PROCESSOR_ID,
+    )
