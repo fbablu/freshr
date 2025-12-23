@@ -1,15 +1,22 @@
+import importlib
 import sys
+import types
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
+    sys.path.insert(0, str(ROOT))
 
-pytest.importorskip("google.cloud.firestore")
+# mock google.cloud.firestore
+fake_firestore = types.SimpleNamespace(Query=types.SimpleNamespace(DESCENDING="DESC"))
+fake_firestore.Client = lambda *args, **kwargs: object()
+fake_cloud = types.SimpleNamespace(firestore=fake_firestore)
+sys.modules["google"] = types.SimpleNamespace(cloud=fake_cloud)
+sys.modules["google.cloud"] = fake_cloud
+sys.modules["google.cloud.firestore"] = fake_firestore
 
-from src.api.app import select_latest_scores
+app = importlib.import_module("src.api.app")
+select_latest_scores = app.select_latest_scores
 
 
 def test_select_latest_scores_picks_latest_per_store():
@@ -21,5 +28,5 @@ def test_select_latest_scores_picks_latest_per_store():
     latest = select_latest_scores(entries)
     by_store = {e["store_id"]: e["score"] for e in latest}
 
-    assert by_store["s1"] == 2  # assumes entries are pre-sorted newest-first
+    assert by_store["s1"] == 2
     assert by_store["s2"] == 3
