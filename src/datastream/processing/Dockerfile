@@ -6,10 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy processing app
+# Copy processing app and config
 COPY src/datastream/processing/app.py .
-
-EXPOSE 8080
+COPY src/datastream/processing/tracked_products.json ./tracked_products.json
 
 # Expected runtime configuration (FireStore credentials via env/ADC)
 CMD ["python", "app.py"]
