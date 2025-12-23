@@ -23,7 +23,8 @@ Producer({
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt   # includes dev tools (black, ruff, pytest)
+pip install -r requirements-dev.txt   # dev tools (linter, format)
+pip install -r requirements.txt
 ```
 
 ## Running tests

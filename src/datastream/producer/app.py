@@ -1,4 +1,7 @@
-import os, json, time, random
+import os
+import json
+import time
+import random
 from datetime import datetime
 from confluent_kafka import Producer
 
@@ -9,13 +12,15 @@ conf = {
 
 producer = Producer(conf)
 
+
 def generate_event():
     return {
         "store_id": "store_1",
         "product_id": random.choice(["eggs", "milk", "bread"]),
         "price": round(random.uniform(2, 6), 2),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+
 
 while True:
     event = generate_event()
