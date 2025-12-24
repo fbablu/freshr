@@ -1,24 +1,6 @@
 # dynamap
 Project for AI Partner for Catalyst
 
-## TODO (remove afterwards)
-- Switch from local Kafka to Confluent Cloud for productionizattion
-```bash
-Producer({
-  "bootstrap.servers": "kafka:9092"
-})
-```
-- Deploy all components to production + stream line this so that it is seamless
-```bash
-Producer({
-  "bootstrap.servers": "<cluster>.confluent.cloud:9092",
-  "security.protocol": "SASL_SSL",
-  "sasl.mechanism": "PLAIN",
-  "sasl.username": "<API_KEY>",
-  "sasl.password": "<API_SECRET>"
-})
-```
-
 ## Local setup
 ```bash
 python3 -m venv .venv
@@ -37,14 +19,22 @@ pip install -r requirements.txt
   ```bash
   ./scripts/build_cloud.sh
   ```
-- Deploy all services to Cloud Run (set Kafka envs first):
+- Deploy all services to Cloud Run (set Kafka envs first; you can source `.env` if you have one):
   ```bash
-  export KAFKA_BOOTSTRAP=...
-  export KAFKA_SECURITY_PROTOCOL=SASL_SSL
-  export KAFKA_SASL_MECHANISM=PLAIN
-  export KAFKA_SASL_USERNAME=...
-  export KAFKA_SASL_PASSWORD=...
+  # If you have .env populated:
+  source .env
+  # Or export manually:
+  # export KAFKA_BOOTSTRAP=<cluster>.confluent.cloud:9092
+  # export KAFKA_SECURITY_PROTOCOL=SASL_SSL
+  # export KAFKA_SASL_MECHANISM=PLAIN
+  # export KAFKA_SASL_USERNAME=<API_KEY>
+  # export KAFKA_SASL_PASSWORD=<API_SECRET>
+  # export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # if not using ADC
   ./scripts/deploy_cloud_run.sh
+  ```
+- Execute streaminig jobs:
+  ```bash
+  ./scripts/run_jobs_cloud.sh
   ```
 - Tear down Cloud Run services:
   ```bash
