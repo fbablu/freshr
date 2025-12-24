@@ -1,59 +1,108 @@
-# DynamapApp
+# Freshr
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.0.4.
+Freshr is a real-time food safety monitoring system that detects contamination risk **before food is served**.
 
-## Development server
+It ingests live kitchen sensor data, finds anomalies, links them to root causes, and triggers actionable incidents for operators and engineers.
 
-To start a local development server, run:
+---
 
-```bash
-ng serve
-```
+## What It Does
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Monitors physical and operational kitchen signals in real time
+- Detects hygiene, temperature, and cross-contamination risks
+- Links anomalies to specific zones, batches, stations, and shifts
+- Produces clear actions: hold, discard, sanitize
+- Creates incidents with context in Datadog
+- Uses Gemini to explain what happened and what to do next
 
-## Code scaffolding
+No predictions. No cameras. Just live signals and fast decisions.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+---
 
-```bash
-ng generate component component-name
-```
+## Architecture
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+- **Confluent (Kafka)** – streaming data in motion
+- **Google Cloud Vertex AI / Gemini** – explanations and recommendations
+- **Datadog** – observability, SLOs, monitors, incidents
+- **Freshr API** – status, anomalies, traceability
 
-```bash
-ng generate --help
-```
+Sensors → Streams → Risk → Incident → Action
 
-## Building
+---
 
-To build the project run:
+## API (Minimal)
 
-```bash
-ng build
-```
+### Ingest
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+- `POST /ingest`  
+  Accepts events and publishes them to Kafka topics.
 
-## Running unit tests
+### Monitoring
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+- `GET /status/store/{store_id}`
+- `GET /status/zone/{zone_id}?start=&end=`
+- `GET /anomalies?store_id=&zone_id=&severity=`
 
-```bash
-ng test
-```
+### Traceability
 
-## Running end-to-end tests
+- `GET /trace/batch/{batch_id}`
 
-For end-to-end (e2e) testing, run:
+### AI Copilot
 
-```bash
-ng e2e
-```
+- `POST /copilot/query`
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+### Demo
 
-## Additional Resources
+- `POST /simulate/traffic`
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+---
+
+## Data Model
+
+- Physical sensor events (temperature, humidity, doors)
+- Operational events (handwash, sanitization, glove changes)
+- Food handling events (ingredient → station → batch)
+- Derived risk events (batch-level safety scores)
+
+All events are streamed, observable, and auditable.
+
+---
+
+## Observability
+
+Datadog dashboards show:
+
+- Kitchen health
+- Risk levels by zone and batch
+- Active alerts and incidents
+- LLM latency, errors, and cost
+
+Detection rules automatically create actionable incidents.
+
+---
+
+## Demo Mode
+
+Includes a simulator that generates:
+
+- Normal operations
+- Hygiene failures
+- Temperature drift
+- Cross-contamination scenarios
+- Recovery events
+
+Used to trigger monitors live.
+
+---
+
+## Why Freshr
+
+Food safety failures are detected too late.
+
+Freshr catches them in real time.
+
+---
+
+## License
+
+MIT License
