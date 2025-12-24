@@ -32,7 +32,7 @@ pip install -r requirements.txt
   # export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # if not using ADC
   ./scripts/deploy_cloud_run.sh
   ```
-- Execute streaminig jobs:
+- Execute streaming jobs:
   ```bash
   ./scripts/run_jobs_cloud.sh
   ```
@@ -40,6 +40,14 @@ pip install -r requirements.txt
   ```bash
   ./scripts/delete_cloud_run.sh
   ```
+
+## API access (Cloud Run)
+- Scores endpoint: `https://dynamap-api-lfc277t73a-uc.a.run.app/scores/recent`
+- Example:
+  ```bash
+  curl https://dynamap-api-lfc277t73a-uc.a.run.app/scores/recent
+  ```
+  Returns JSON of the most recent score per store (empty if no scores yet).
 
 ### Backend deployment note
 - Long-running pieces (producer/consumer/processor) stay containerized; deploy to a service suited for continuous workloads (e.g., Cloud Run with min instances >0, or GKE).

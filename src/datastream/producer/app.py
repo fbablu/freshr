@@ -11,6 +11,9 @@ from jsonschema import ValidationError, validate
 conf = {
     "bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"],
     "security.protocol": os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+    "sasl.mechanism": os.getenv("KAFKA_SASL_MECHANISM"),
+    "sasl.username": os.getenv("KAFKA_SASL_USERNAME"),
+    "sasl.password": os.getenv("KAFKA_SASL_PASSWORD"),
 }
 
 STORE_ID = os.getenv("STORE_ID") or os.getenv("HOSTNAME", "store_1")

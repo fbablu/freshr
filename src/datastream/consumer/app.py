@@ -27,6 +27,10 @@ consumer = Consumer(
         "bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"],
         "group.id": "price-consumer",
         "auto.offset.reset": "earliest",
+        "security.protocol": os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+        "sasl.mechanism": os.getenv("KAFKA_SASL_MECHANISM"),
+        "sasl.username": os.getenv("KAFKA_SASL_USERNAME"),
+        "sasl.password": os.getenv("KAFKA_SASL_PASSWORD"),
     }
 )
 producer = Producer(
