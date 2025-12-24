@@ -1,0 +1,12 @@
+# src/datastream/producer/config/cloudbuild.yaml
+steps:
+- name: gcr.io/cloud-builders/docker
+  args:
+  - build
+  - -f
+  - src/datastream/producer/Dockerfile
+  - -t
+  - us-central1-docker.pkg.dev/rich-archery-482201/dynamap/dynamap-producer
+  - .
+images:
+- us-central1-docker.pkg.dev/rich-archery-482201/dynamap/dynamap-producer

@@ -32,23 +32,27 @@ pip install -r requirements.txt
 ./scripts/run_checks.sh
 ```
 
-## Data stream stack (Kafka + Firestore)
-- Components: producer (writes `price-events`), consumer (writes to Firestore), processing API (reads from Firestore).
-- Configure `.env` with your settings (not committed):
-  ```
-  KAFKA_BOOTSTRAP=<cluster>.confluent.cloud:9092
-  KAFKA_SECURITY_PROTOCOL=SASL_SSL
-  KAFKA_SASL_MECHANISM=PLAIN
-  KAFKA_SASL_USERNAME=<API_KEY>
-  KAFKA_SASL_PASSWORD=<API_SECRET>
-  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-  ```
-- Build and run N producers, consumers, processors (defaults: 5/1/2):
+## Cloud build/deploy scripts
+- Build and push images to Artifact Registry:
   ```bash
-  ./scripts/run_stack.sh
+  ./scripts/build_cloud.sh
+  ```
+- Deploy all services to Cloud Run (set Kafka envs first):
+  ```bash
+  export KAFKA_BOOTSTRAP=...
+  export KAFKA_SECURITY_PROTOCOL=SASL_SSL
+  export KAFKA_SASL_MECHANISM=PLAIN
+  export KAFKA_SASL_USERNAME=...
+  export KAFKA_SASL_PASSWORD=...
+  ./scripts/deploy_cloud_run.sh
+  ```
+- Tear down Cloud Run services:
+  ```bash
+  ./scripts/delete_cloud_run.sh
   ```
 
 ### Backend deployment note
-- Long-running pieces (producer/consumer) stay containerized; deploy to a service suited for continuous workloads (e.g., GKE or managed Kafka connectors).
+- Long-running pieces (producer/consumer/processor) stay containerized; deploy to a service suited for continuous workloads (e.g., Cloud Run with min instances >0, or GKE).
 - On-demand HTTP (processing API) can stay containerized and run on Cloud Run behind HTTPS; still uses Firestore and Kafka data.
+- Scaling on Cloud Run is handled per service; adjust `--min-instances`/`--max-instances` in the deploy script as needed.
 - Google tech in use: Firestore via `google-cloud-firestore`; Kafka client is `confluent-kafka` configured with Confluent Cloud SASL/SSL at runtime.

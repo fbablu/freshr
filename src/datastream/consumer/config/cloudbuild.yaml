@@ -1,0 +1,11 @@
+steps:
+- name: gcr.io/cloud-builders/docker
+  args:
+  - build
+  - -f
+  - src/datastream/consumer/Dockerfile
+  - -t
+  - us-central1-docker.pkg.dev/rich-archery-482201/dynamap/dynamap-consumer
+  - .
+images:
+- us-central1-docker.pkg.dev/rich-archery-482201/dynamap/dynamap-consumer
