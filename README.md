@@ -35,7 +35,8 @@ pip install -r requirements.txt
   ```
 - Tear down Cloud Run services:
   ```bash
-  ./scripts/delete_cloud_run.sh
+  ./scripts/delete_cloud_run.sh              # deletes all services
+  ./scripts/delete_cloud_run.sh --skip-api   # leaves API running
   ```
 
 ## Sensor model
