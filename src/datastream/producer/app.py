@@ -75,7 +75,7 @@ sensors = [
     Sensor(
         sensor_type="cold_storage_temperature",
         topic="sensor-physical-cold-storage-temperature",
-        sensor_ids=["cs-1", "cs-2", "cs-3"],
+        sensor_ids=["cs-1", "cs-2", "cs-3", "cs-4", "cs-5"],
         measurement_type="celsius",
         value_fn=num_in_range(-5, 5),
         frequency_hz=0.5,
@@ -83,7 +83,7 @@ sensors = [
     Sensor(
         sensor_type="ambient_kitchen_temperature",
         topic="sensor-physical-ambient-kitchen-temperature",
-        sensor_ids=["ak-1", "ak-2"],
+        sensor_ids=["ak-1", "ak-2", "ak-3", "ak-4", "ak-5"],
         measurement_type="celsius",
         value_fn=num_in_range(18, 30),
         frequency_hz=0.2,
@@ -91,7 +91,7 @@ sensors = [
     Sensor(
         sensor_type="humidity",
         topic="sensor-physical-humidity",
-        sensor_ids=["hum-1", "hum-2"],
+        sensor_ids=["hum-1", "hum-2", "hum-3", "hum-4", "hum-5"],
         measurement_type="percent",
         value_fn=num_in_range(30, 80),
         frequency_hz=0.2,
@@ -99,7 +99,7 @@ sensors = [
     Sensor(
         sensor_type="time_out_of_range_duration",
         topic="sensor-physical-time-out-of-range-duration",
-        sensor_ids=["tor-1"],
+        sensor_ids=["tor-1", "tor-2", "tor-3", "tor-4", "tor-5"],
         measurement_type="seconds",
         value_fn=num_in_range(0, 300),
         frequency_hz=0.1,
@@ -107,7 +107,7 @@ sensors = [
     Sensor(
         sensor_type="handwash_station_usage",
         topic="sensor-operational-handwash-station-usage",
-        sensor_ids=["hw-1", "hw-2"],
+        sensor_ids=["hw-1", "hw-2", "hw-3", "hw-4", "hw-5"],
         measurement_type="count",
         value_fn=int_range(0, 20),
         frequency_hz=0.05,
@@ -115,7 +115,7 @@ sensors = [
     Sensor(
         sensor_type="delivery_arrival",
         topic="sensor-operational-delivery-arrival",
-        sensor_ids=["del-1", "del-2"],
+        sensor_ids=["del-1", "del-2", "del-3", "del-4", "del-5"],
         measurement_type="timestamp",
         value_fn=lambda: datetime.now(timezone.utc).isoformat(),
         frequency_hz=0.02,
@@ -123,7 +123,7 @@ sensors = [
     Sensor(
         sensor_type="shift_change",
         topic="sensor-operational-shift-change",
-        sensor_ids=["shift-1"],
+        sensor_ids=["shift-1", "shift-2", "shift-3", "shift-4", "shift-5"],
         measurement_type="event",
         value_fn=lambda: random.choice(["start", "end"]),
         frequency_hz=0.02,
