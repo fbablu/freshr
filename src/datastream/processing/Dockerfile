@@ -6,10 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy processing app and config
+# Copy processing app and schemas
 COPY src/datastream/processing/app.py .
-COPY src/datastream/processing/tracked_products.json ./tracked_products.json
-COPY src/datastream/schemas/scores.json ./scores.json
+COPY src/datastream/schemas ./schemas
 
 # Expected runtime configuration (FireStore credentials via env/ADC)
 CMD ["python", "app.py"]

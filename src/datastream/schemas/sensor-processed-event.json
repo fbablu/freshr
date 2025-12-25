@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "required": [
+    "measurement_id",
+    "sensor_id",
+    "sensor_type",
+    "timestamp",
+    "frequency_hz",
+    "measurement_value",
+    "measurement_type",
+    "source_topic"
+  ],
+  "properties": {
+    "measurement_id": { "type": "string" },
+    "sensor_id": { "type": "string" },
+    "sensor_type": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "frequency_hz": { "type": "number" },
+    "measurement_value": { "oneOf": [ { "type": "number" }, { "type": "string" } ] },
+    "measurement_type": { "type": "string" },
+    "source_topic": { "type": "string" }
+  },
+  "additionalProperties": false
+}

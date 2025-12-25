@@ -4,46 +4,60 @@ from typing import Dict, List
 from flask import Flask, jsonify
 from google.cloud import firestore
 
-SCORES_COLLECTION = os.getenv("SCORES_COLLECTION", "scores")
+DEVICE_COLLECTION = os.getenv("DEVICE_COLLECTION", "device_measurements")
+ANOMALIES_COLLECTION = os.getenv("ANOMALIES_COLLECTION", "anomalies")
 
 app = Flask(__name__)
 db = firestore.Client()
 
 
-def select_latest_scores(entries: List[Dict]) -> List[Dict]:
-    """Return the most recent score per store, assuming entries are pre-sorted newest-first."""
+def select_latest_by(entries: List[Dict], key: str) -> List[Dict]:
+    """Return the most recent entry per key, assuming entries are pre-sorted newest-first."""
     latest = {}
     for entry in entries:
-        store_id = entry.get("store_id")
-        if not store_id or store_id in latest:
+        entry_key = entry.get(key)
+        if not entry_key or entry_key in latest:
             continue
-        latest[store_id] = {
-            "store_id": store_id,
-            "score": entry.get("score"),
-            "timestamp": entry.get("timestamp"),
-        }
+        latest[entry_key] = entry
     return list(latest.values())
 
 
-@app.route("/scores/recent", methods=["GET"])
-def recent_scores():
-    scores_ref = (
-        db.collection(SCORES_COLLECTION)
+@app.route("/measurements/recent", methods=["GET"])
+def recent_measurements():
+    ref = (
+        db.collection(DEVICE_COLLECTION)
         .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .limit(50)
         .stream()
     )
-
     entries = []
-    for doc in scores_ref:
+    for doc in ref:
         data = doc.to_dict()
         if not data:
             continue
-        # Ensure store_id travels along
-        data["store_id"] = data.get("store_id")
+        data["id"] = doc.id
         entries.append(data)
+    latest = select_latest_by(entries, key="sensor_id")
+    return jsonify({"measurements": latest})
 
-    latest = select_latest_scores(entries)
-    return jsonify({"scores": latest})
+
+@app.route("/anomalies/recent", methods=["GET"])
+def recent_anomalies():
+    ref = (
+        db.collection(ANOMALIES_COLLECTION)
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .limit(50)
+        .stream()
+    )
+    entries = []
+    for doc in ref:
+        data = doc.to_dict()
+        if not data:
+            continue
+        data["id"] = doc.id
+        entries.append(data)
+    latest = select_latest_by(entries, key="measurement_id")
+    return jsonify({"anomalies": latest})
 
 
 if __name__ == "__main__":

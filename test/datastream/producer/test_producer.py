@@ -1,8 +1,9 @@
-def test_event_shape():
-    event = {
-        "store_id": "s",
-        "product_id": "p",
-        "price": 1.0,
-        "timestamp": "2025-01-01T00:00:00Z",
-    }
-    assert "store_id" in event
+import json
+from pathlib import Path
+
+
+def test_sensor_schema_has_fields():
+    schema_path = Path("src/datastream/schemas/sensor-physical-humidity.json")
+    schema = json.loads(schema_path.read_text())
+    for field in ["sensor_id", "sensor_type", "timestamp", "measurement_value"]:
+        assert field in schema["required"]

@@ -2,75 +2,60 @@ import json
 import os
 import random
 import socket
-from datetime import datetime
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
 
 from confluent_kafka import Consumer
+from flask import Flask
 from google.cloud import firestore
 from jsonschema import ValidationError, validate
 
-PROCESSED_TOPIC = os.getenv("PROCESSED_TOPIC", "price-events-processed")
+PROCESSED_TOPIC = os.getenv("PROCESSED_TOPIC", "sensor-events-processed")
 PROCESSOR_ID = os.getenv("PROCESSOR_ID") or socket.gethostname()
-SCORES_COLLECTION = os.getenv("SCORES_COLLECTION", "scores")
+DEVICE_COLLECTION = os.getenv("DEVICE_COLLECTION", "device_measurements")
+ANOMALIES_COLLECTION = os.getenv("ANOMALIES_COLLECTION", "anomalies")
 
 
 def load_schema(file_name: str):
-    local_path = Path(__file__).with_name(file_name)
-    repo_path = Path(__file__).parent.parent / "schemas" / file_name
-    for path in (local_path, repo_path):
+    candidates = [
+        Path(__file__).with_name(file_name),
+        Path(__file__).parent / "schemas" / file_name,
+        Path(__file__).parent.parent / "schemas" / file_name,
+    ]
+    for path in candidates:
         if path.exists():
             with path.open() as f:
                 return json.load(f)
     raise FileNotFoundError(f"Schema {file_name} not found")
 
 
-SCORES_SCHEMA = load_schema("scores.json")
+PROCESSED_SCHEMA = load_schema("sensor-processed-event.json")
+ANOMALY_SCHEMA = load_schema("sensor-anomaly.json")
+
+# Only physical sensors get anomaly flags; others default to "none".
+ANOMALY_SENSOR_TYPES = {
+    "cold_storage_temperature",
+    "ambient_kitchen_temperature",
+    "humidity",
+    "time_out_of_range_duration",
+}
 
 
-def load_tracked_products(path: Path) -> List[str]:
-    with path.open() as f:
-        products = json.load(f)
-    return [p for p in products if isinstance(p, str)]
-
-
-def pick_anomaly_label() -> str:
+def pick_anomaly_label(sensor_type: str) -> str:
+    if sensor_type not in ANOMALY_SENSOR_TYPES:
+        return "none"
     return random.choice(["positive", "negative", "none"])
 
 
-def compute_total(products: List[str], event: dict) -> float:
-    """Compute total for tracked products from Firestore snapshot."""
-    store_id = event.get("store_id")
-    if not store_id:
-        return 0.0
-
-    prices_ref = db.collection("prices").where("store_id", "==", store_id).stream()
-    total = 0.0
-    for doc in prices_ref:
-        data = doc.to_dict()
-        if data.get("product_id") in products:
-            total += float(data.get("price", 0.0))
-    return round(total, 2)
-
-
-def annotate_doc(doc_id: str, anomaly: str):
-    db.collection("prices").document(doc_id).set(
-        {"anomaly": anomaly, "processed_by": PROCESSOR_ID}, merge=True
-    )
-
-
-def persist_score(store_id: str, score: float, timestamp: str):
-    payload = {"store_id": store_id, "score": score, "timestamp": timestamp}
+def persist_anomaly(payload: dict):
     try:
-        validate(instance=payload, schema=SCORES_SCHEMA)
+        validate(instance=payload, schema=ANOMALY_SCHEMA)
     except ValidationError as exc:
-        print("Invalid score payload, skipping:", exc)
+        print("Invalid anomaly payload, skipping:", exc)
         return
-    db.collection(SCORES_COLLECTION).add(payload)
+    db.collection(ANOMALIES_COLLECTION).add(payload)
 
-
-config_path = Path(__file__).parent / "tracked_products.json"
-tracked_products = load_tracked_products(config_path)
 
 consumer = Consumer(
     {
@@ -87,32 +72,62 @@ consumer.subscribe([PROCESSED_TOPIC])
 
 db = firestore.Client()
 
-while True:
-    msg = consumer.poll(1.0)
-    if not msg or msg.error():
-        continue
 
-    event = json.loads(msg.value())
-    doc_id = event.get("doc_id")
-    if not doc_id:
-        continue
+def main():
+    while True:
+        msg = consumer.poll(1.0)
+        if not msg or msg.error():
+            continue
 
-    anomaly = pick_anomaly_label()
-    tracked_total = compute_total(tracked_products, event)
-    annotate_doc(doc_id, anomaly)
+        event = json.loads(msg.value())
+        try:
+            validate(instance=event, schema=PROCESSED_SCHEMA)
+        except ValidationError as exc:
+            print("Invalid processed event, skipping:", exc)
+            continue
 
-    event_timestamp = event.get("timestamp") or datetime.utcnow().isoformat() + "Z"
-    store_id = event.get("store_id")
-    if store_id:
-        persist_score(store_id, tracked_total, event_timestamp)
+        measurement_id = event.get("measurement_id")
+        sensor_type = event.get("sensor_type")
+        if not measurement_id or not sensor_type:
+            continue
 
-    print(
-        "Annotated doc",
-        doc_id,
-        "with",
-        anomaly,
-        "score",
-        tracked_total,
-        "by",
-        PROCESSOR_ID,
-    )
+        anomaly = pick_anomaly_label(sensor_type)
+        timestamp = event.get("timestamp") or datetime.now(timezone.utc).isoformat()
+
+        db.collection(DEVICE_COLLECTION).document(measurement_id).set(
+            {"anomaly": anomaly, "processed_by": PROCESSOR_ID}, merge=True
+        )
+
+        anomaly_payload = {
+            "measurement_id": measurement_id,
+            "sensor_type": sensor_type,
+            "anomaly": anomaly,
+            "processed_by": PROCESSOR_ID,
+            "timestamp": timestamp,
+        }
+        persist_anomaly(anomaly_payload)
+
+        print(
+            "Processed measurement",
+            measurement_id,
+            "sensor_type",
+            sensor_type,
+            "anomaly",
+            anomaly,
+            "by",
+            PROCESSOR_ID,
+        )
+
+
+if __name__ == "__main__":
+    t = threading.Thread(target=main, daemon=True)
+    t.start()
+
+    app = Flask(__name__)
+
+    @app.route("/healthz", methods=["GET"])
+    def health():
+        return "ok"
+
+    port = int(os.getenv("PORT", "8080"))
+    app.run(host="0.0.0.0", port=port)

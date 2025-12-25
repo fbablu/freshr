@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["sensor_id", "sensor_type", "timestamp", "frequency_hz", "measurement_value", "measurement_type"],
+  "properties": {
+    "sensor_id": { "type": "string" },
+    "sensor_type": { "type": "string", "const": "handwash_station_usage" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "frequency_hz": { "type": "number" },
+    "measurement_value": { "type": "number" },
+    "measurement_type": { "type": "string", "const": "count" }
+  },
+  "additionalProperties": true
+}
