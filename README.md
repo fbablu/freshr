@@ -18,6 +18,7 @@ pip install -r requirements.txt
 - Build and push images to Artifact Registry:
   ```bash
   ./scripts/build_cloud.sh
+  ./scripts/build_cloud.sh --api-only   # build/push only the API image
   ```
 - Deploy all services to Cloud Run (set Kafka envs first; you can source `.env` if you have one). Producer/consumer/processor now run as long-lived services with a /healthz endpoint:
   ```bash
@@ -32,6 +33,8 @@ pip install -r requirements.txt
   # (Ensure these are set for all services before deploy; otherwise Kafka will fail)
   # export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # if not using ADC
   ./scripts/deploy_cloud_run.sh
+  # API-only redeploy:
+  ./scripts/deploy_cloud_run.sh --api-only
   ```
 - Tear down Cloud Run services:
   ```bash
@@ -56,6 +59,8 @@ pip install -r requirements.txt
   curl https://dynamap-api-lfc277t73a-uc.a.run.app/anomalies/recent
   ```
   Returns JSON of the most recent entries (empty if none).
+
+  Additional-  API docs/examples: see `src/api/README.md`
 
 ### Backend deployment note
 - Long-running pieces (producer/consumer/processor) stay containerized; deploy to a service suited for continuous workloads (e.g., Cloud Run with min instances >0, or GKE).
