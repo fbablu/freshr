@@ -4,3 +4,9 @@ __pycache__/
 .ruff_cache/
 *.pyc
 .env
+
+
+.angular/
+.firebase/
+dist/
+node_modules/
