@@ -1,0 +1,65 @@
+<!-- kitchen-map.component.html -->
+<div class="h-full flex gap-4 p-6">
+  <!-- Kitchen Map Area -->
+  <div class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 flex flex-col">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold">Kitchen Layout</h2>
+      <button
+        (click)="resetView()"
+        class="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 rounded"
+      >
+        Reset View
+      </button>
+    </div>
+
+    <div class="flex-1 relative border border-slate-200 rounded overflow-hidden bg-slate-50">
+      <ko-stage
+        #stage
+        [config]="configStage"
+        (wheel)="handleWheel($event)"
+        (dragstart)="handleDragStart($event)"
+        (dragend)="handleDragEnd($event)"
+      >
+        <ko-layer>
+          @for (zone of zones; track trackZone($index, zone)) {
+            <ko-rect
+              [config]="getZoneConfig(zone)"
+              (click)="handleZoneClick($event, zone.id)"
+              (mouseenter)="handleZoneMouseEnter($event)"
+              (mouseleave)="handleZoneMouseLeave($event)"
+            />
+            <ko-text [config]="getTextConfig(zone)" />
+          }
+        </ko-layer>
+      </ko-stage>
+
+      <!-- Zoom indicator -->
+      <div
+        class="absolute bottom-4 right-4 bg-white px-3 py-1 rounded shadow text-sm pointer-events-none"
+      >
+        {{ zoomLevel() }}%
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="w-80 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+    <h3 class="font-bold mb-3">Active Incidents</h3>
+    <div *ngIf="incidentCount().length === 0" class="text-slate-500 text-sm">
+      No active incidents
+    </div>
+    <div *ngIf="incidentCount().length > 0" class="space-y-2">
+      <div
+        *ngFor="let incident of incidentCount()"
+        class="p-3 bg-amber-50 border border-amber-200 rounded-lg"
+      >
+        <p class="text-sm font-medium">{{ incident }}</p>
+      </div>
+    </div>
+
+    <div *ngIf="selectedZone()" class="mt-4 pt-4 border-t">
+      <h4 class="font-medium mb-2">Selected Zone</h4>
+      <p class="text-sm text-slate-600">{{ selectedZone() }}</p>
+    </div>
+  </div>
+</div>
