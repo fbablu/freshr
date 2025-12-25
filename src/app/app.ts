@@ -141,7 +141,7 @@ import { FreshrService } from './core/services/freshr.service';
             [class.hidden]="!isDrawerOpen() && !drawerVisible"
           >
             <!-- Optimization -->
-            <app-context-drawer></app-context-drawer>
+            <app-context-drawer *ngIf="service.selectedContext()"></app-context-drawer>
           </div>
         </main>
       </div>
@@ -156,7 +156,7 @@ import { FreshrService } from './core/services/freshr.service';
   ],
 })
 export class App {
-  private service = inject(FreshrService);
+  service = inject(FreshrService);
 
   isDrawerOpen = this.service.selectedContext;
   drawerVisible = false; // logic to keep DOM present for animation if needed, simplified here.

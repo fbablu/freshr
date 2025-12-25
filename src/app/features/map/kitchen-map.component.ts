@@ -8,90 +8,164 @@ import { LucideAngularModule } from 'lucide-angular';
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
   template: `
-    <div class="p-8 h-full bg-slate-50 flex flex-col items-center justify-center">
-      <div class="mb-8 text-center">
-        <h1 class="text-3xl font-bold text-slate-800 tracking-tight">Kitchen Overview</h1>
-        <p class="text-slate-500">Live zone status monitoring</p>
+    <div class="flex flex-col h-full">
+      <!-- Header -->
+      <div class="p-6 border-b border-gray-200 bg-white">
+        <h2 class="text-2xl font-semibold text-gray-900">Kitchen Map</h2>
+        <p class="text-sm text-gray-600 mt-1">Real-time zone monitoring</p>
       </div>
 
-      <div class="grid grid-cols-3 gap-6 w-full max-w-5xl aspect-video">
-        <!-- Zone Tiles -->
-        <ng-container *ngFor="let zone of zones() | keyvalue">
+      <!-- Map Grid -->
+      <div class="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <div class="max-w-6xl mx-auto">
           <div
-            (click)="selectZone(zone.key, zone.value)"
-            class="relative rounded-2xl border-2 p-6 cursor-pointer transition-all duration-300 hover:scale-[1.02] flex flex-col justify-between overflow-hidden shadow-sm"
-            [ngClass]="{
-              'bg-white border-slate-200 hover:border-blue-300': zone.value.state === 'normal',
-              'bg-red-50 border-red-200 hover:border-red-400': zone.value.state === 'unsafe',
-              'bg-yellow-50 border-yellow-200 hover:border-yellow-400':
-                zone.value.state === 'at-risk',
-              'bg-blue-50 border-blue-200 hover:border-blue-400': zone.value.state === 'recovering',
-            }"
+            class="grid gap-4"
+            style="
+              grid-template-areas:
+                'recv recv cold cold'
+                'prep prep cook cook'
+                'prep prep plate plate'
+                'wash wash plate plate';
+              grid-template-columns: repeat(4, 1fr);
+              grid-template-rows: repeat(4, 180px);
+            "
           >
-            <!-- Status Badge -->
-            <div class="absolute top-4 right-4 animate-pulse" *ngIf="zone.value.state !== 'normal'">
-              <span
-                class="w-3 h-3 rounded-full inline-block"
-                [ngClass]="{
-                  'bg-red-500': zone.value.state === 'unsafe',
-                  'bg-yellow-500': zone.value.state === 'at-risk',
-                }"
-              ></span>
-            </div>
-
-            <div>
-              <h3 class="text-lg font-bold text-slate-800">{{ zone.value.name }}</h3>
-              <p
-                class="text-sm font-medium uppercase tracking-wider mt-1"
-                [ngClass]="{
-                  'text-green-600': zone.value.state === 'normal',
-                  'text-red-600': zone.value.state === 'unsafe',
-                  'text-yellow-600': zone.value.state === 'at-risk',
-                }"
-              >
-                {{ zone.value.state }}
-              </p>
-            </div>
-
-            <div class="mt-4">
-              <div class="text-4xl font-light text-slate-800">{{ zone.value.activeCount }}</div>
-              <div class="text-xs text-slate-500">Active Issues</div>
-            </div>
-
-            <!-- Decoration -->
+            <!-- Zone Cards -->
             <div
-              class="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-10"
+              *ngFor="let zone of zones() | keyvalue"
+              (click)="selectZone(zone.key, zone.value)"
+              class="rounded-xl border-2 p-6 cursor-pointer transition-all"
+              [style.grid-area]="getGridArea(zone.key)"
               [ngClass]="{
-                'bg-green-500': zone.value.state === 'normal',
-                'bg-red-500': zone.value.state === 'unsafe',
-                'bg-yellow-500': zone.value.state === 'at-risk',
+                'bg-green-50 border-green-300 hover:shadow-lg':
+                  zone.value.state === 'normal' && !isSelected(zone.key),
+                'bg-amber-50 border-amber-300 hover:shadow-lg':
+                  zone.value.state === 'at-risk' && !isSelected(zone.key),
+                'bg-red-50 border-red-300 hover:shadow-lg':
+                  zone.value.state === 'unsafe' && !isSelected(zone.key),
+                'bg-blue-50 border-blue-300 hover:shadow-lg':
+                  zone.value.state === 'recovering' && !isSelected(zone.key),
+                'border-blue-500 shadow-xl scale-[1.02]': isSelected(zone.key),
               }"
-            ></div>
-          </div>
-        </ng-container>
-      </div>
+            >
+              <div class="flex flex-col h-full">
+                <!-- Header with Status Dot -->
+                <div class="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 class="text-lg font-semibold text-gray-900">{{ zone.value.name }}</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ zone.key }}</p>
+                  </div>
+                  <div
+                    class="w-4 h-4 rounded-full shadow-lg"
+                    [ngClass]="{
+                      'bg-green-500': zone.value.state === 'normal',
+                      'bg-amber-500': zone.value.state === 'at-risk',
+                      'bg-red-500': zone.value.state === 'unsafe',
+                      'bg-blue-500': zone.value.state === 'recovering',
+                    }"
+                  ></div>
+                </div>
 
-      <div class="mt-8 flex gap-6 text-sm text-slate-500">
-        <span class="flex items-center gap-2"
-          ><span class="w-2 h-2 rounded-full bg-green-500"></span> Normal</span
-        >
-        <span class="flex items-center gap-2"
-          ><span class="w-2 h-2 rounded-full bg-yellow-500"></span> At Risk</span
-        >
-        <span class="flex items-center gap-2"
-          ><span class="w-2 h-2 rounded-full bg-red-500"></span> Unsafe</span
-        >
+                <!-- Status Label and Incident Count -->
+                <div class="flex-1 flex flex-col justify-end">
+                  <div
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium text-sm"
+                    [ngClass]="{
+                      'text-green-700': zone.value.state === 'normal',
+                      'text-amber-700': zone.value.state === 'at-risk',
+                      'text-red-700': zone.value.state === 'unsafe',
+                      'text-blue-700': zone.value.state === 'recovering',
+                    }"
+                  >
+                    <span>{{ getStateLabel(zone.value.state) }}</span>
+                  </div>
+
+                  <div
+                    *ngIf="zone.value.activeCount > 0"
+                    class="mt-3 pt-3 border-t border-gray-200"
+                  >
+                    <div class="flex items-center justify-between text-sm">
+                      <span class="text-gray-600">Active incidents</span>
+                      <span
+                        class="font-bold"
+                        [ngClass]="{
+                          'text-green-700': zone.value.state === 'normal',
+                          'text-amber-700': zone.value.state === 'at-risk',
+                          'text-red-700': zone.value.state === 'unsafe',
+                          'text-blue-700': zone.value.state === 'recovering',
+                        }"
+                      >
+                        {{ zone.value.activeCount }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Legend -->
+          <div class="mt-6 bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gray-700">Legend</span>
+              <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span class="text-sm text-gray-600">Normal</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                  <span class="text-sm text-gray-600">At Risk</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span class="text-sm text-gray-600">Unsafe</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span class="text-sm text-gray-600">Recovering</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `,
 })
 export class KitchenMapComponent {
   service = inject(FreshrService);
-
-  // Expose signal directly
   zones = this.service.zoneStates;
+  selectedZoneId: string | null = null;
 
   selectZone(id: string, zoneData: any) {
-    (this.service as any).selectedContext.set({ type: 'zone', id: id, data: zoneData });
+    this.selectedZoneId = id;
+    this.service.selectedContext.set({ type: 'zone', id: id, data: zoneData });
+  }
+
+  isSelected(zoneId: string): boolean {
+    return this.selectedZoneId === zoneId;
+  }
+
+  getGridArea(zoneId: string): string {
+    const gridAreas: Record<string, string> = {
+      'zone-cold-1': 'cold',
+      'zone-prep-1': 'prep',
+      'zone-cook-1': 'cook',
+      'zone-plate-1': 'plate',
+      'zone-wash-1': 'wash',
+      'zone-recv-1': 'recv',
+    };
+    return gridAreas[zoneId] || 'auto';
+  }
+
+  getStateLabel(state: string): string {
+    const labels: Record<string, string> = {
+      normal: 'Normal',
+      'at-risk': 'At Risk',
+      unsafe: 'Unsafe',
+      recovering: 'Recovering',
+    };
+    return labels[state] || state;
   }
 }
