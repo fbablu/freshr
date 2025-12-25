@@ -76,10 +76,10 @@ export class KitchenMapComponent implements AfterViewInit {
   };
 
   zones: Zone[] = [
-    { id: 'washing', name: 'Washing', x: 0.5, y: 19.5, width: 127, height: 115 },
-    { id: 'food prep', name: 'Food Prep', x: 128.5, y: 19.5, width: 89, height: 115 },
-    { id: 'output', name: 'Output', x: 218.5, y: 19.5, width: 71, height: 115 },
-    { id: 'assembly', name: 'Assembly', x: 0.5, y: 135.5, width: 144, height: 48 },
+    { id: 'food prep', name: 'Food Prep', x: 0.5, y: 19.5, width: 127, height: 115 },
+    { id: 'cooking', name: 'Cooking', x: 128.5, y: 19.5, width: 89, height: 115 },
+    { id: 'service', name: 'Service', x: 218.5, y: 19.5, width: 71, height: 115 },
+    { id: 'washing', name: 'Washing', x: 0.5, y: 135.5, width: 144, height: 48 },
     { id: 'storage', name: 'Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
   ];
 

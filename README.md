@@ -6,6 +6,16 @@ It ingests live kitchen sensor data, finds anomalies, links them to root causes,
 
 ## **Hosted at:** https://freshr-482201-b6.web.app
 
+## Quick Start
+
+Ensure you have pnpm installed. If not, install it from https://pnpm.io/installation
+
+1. Run `pnpm install` to install dependencies.
+
+2. Run `ng build && ng serve` to build and start the development server.
+
+3. To deploy, run `firebase deploy`.
+
 ## What It Does
 
 - Monitors physical and operational kitchen signals in real time
