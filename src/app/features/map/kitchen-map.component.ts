@@ -64,7 +64,7 @@ export class KitchenMapComponent implements AfterViewInit {
   zoomLevel = signal(100);
 
   // Configuration
-  private readonly PADDING_FACTOR = 0.1; // 10% padding around zones
+  private readonly PADDING_FACTOR = 0.1;
   private readonly MIN_ZOOM = 0.5;
   private readonly MAX_ZOOM = 3;
   private readonly ZOOM_STEP = 1.1;
@@ -77,10 +77,10 @@ export class KitchenMapComponent implements AfterViewInit {
 
   zones: Zone[] = [
     { id: 'washing', name: 'Washing', x: 0.5, y: 19.5, width: 127, height: 115 },
-    { id: 'storage1', name: 'Storage', x: 128.5, y: 19.5, width: 89, height: 115 },
+    { id: 'food prep', name: 'Food Prep', x: 128.5, y: 19.5, width: 89, height: 115 },
     { id: 'output', name: 'Output', x: 218.5, y: 19.5, width: 71, height: 115 },
     { id: 'assembly', name: 'Assembly', x: 0.5, y: 135.5, width: 144, height: 48 },
-    { id: 'storage2', name: 'Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
+    { id: 'storage', name: 'Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
   ];
 
   ngAfterViewInit() {
