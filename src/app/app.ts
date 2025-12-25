@@ -1,35 +1,20 @@
 import { Component, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import {
-  LucideAngularModule,
-  LayoutDashboard,
-  Map as MapIcon,
-  Settings,
-  Bell,
-  ChevronDown,
-} from 'lucide-angular';
-import { ContextDrawerComponent } from './shared/components/context-drawer.component';
+import { LucideAngularModule, ChevronDown, Bell } from 'lucide-angular';
 import { FreshrService } from './core/services/freshr.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [
-    RouterOutlet,
-    RouterLink,
-    RouterLinkActive,
-    CommonModule,
-    LucideAngularModule,
-    ContextDrawerComponent,
-  ],
+  imports: [RouterOutlet, CommonModule, LucideAngularModule],
   template: `
     <div
       class="h-screen w-screen flex flex-col bg-slate-50 overflow-hidden font-sans text-slate-900"
     >
       <!-- Top Bar -->
       <header
-        class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm relative"
+        class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm"
       >
         <div class="flex items-center gap-8">
           <div class="flex items-center gap-2">
@@ -74,77 +59,34 @@ import { FreshrService } from './core/services/freshr.service';
             </select>
           </div>
 
+          <!-- Notification Bell -->
+          <button
+            class="relative p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            [class.bg-amber-50]="incidentCount() > 0"
+            (click)="toggleIncidentList()"
+          >
+            <lucide-icon
+              name="bell"
+              [size]="20"
+              [class.text-amber-600]="incidentCount() > 0"
+              [class.text-slate-600]="incidentCount() === 0"
+            ></lucide-icon>
+            <span
+              *ngIf="incidentCount() > 0"
+              class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+            >
+              {{ incidentCount() }}
+            </span>
+          </button>
+
           <div class="w-8 h-8 rounded-full bg-slate-200 border border-slate-300"></div>
         </div>
       </header>
 
-      <!-- Main Layout -->
-      <div class="flex-1 flex overflow-hidden">
-        <!-- Sidebar -->
-        <nav class="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between py-6">
-          <div class="space-y-1 px-3">
-            <a
-              routerLink="/incidents"
-              routerLinkActive="bg-slate-800 text-white shadow-inner"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800/50 transition-all group"
-            >
-              <lucide-icon
-                name="bell"
-                [size]="20"
-                class="group-hover:text-white transition-colors"
-              ></lucide-icon>
-              <span class="font-medium">Incident Inbox</span>
-              <span
-                class="ml-auto bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full"
-                *ngIf="activeCount().length > 0"
-                >{{ activeCount().length }}</span
-              >
-            </a>
-
-            <a
-              routerLink="/map"
-              routerLinkActive="bg-slate-800 text-white shadow-inner"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800/50 transition-all group"
-            >
-              <lucide-icon
-                name="map"
-                [size]="20"
-                class="group-hover:text-white transition-colors"
-              ></lucide-icon>
-              <span class="font-medium">Kitchen Map</span>
-            </a>
-          </div>
-
-          <div class="px-6">
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
-              System
-            </div>
-            <div
-              class="flex items-center gap-3 text-sm hover:text-white cursor-pointer transition-colors"
-            >
-              <lucide-icon name="settings" [size]="18"></lucide-icon> Settings
-            </div>
-          </div>
-        </nav>
-
-        <!-- Content Area -->
-        <main class="flex-1 relative overflow-hidden flex">
-          <div class="flex-1 h-full overflow-hidden relative z-0">
-            <router-outlet></router-outlet>
-          </div>
-
-          <!-- Context Drawer -->
-          <div
-            class="w-[400px] h-full relative z-10 transition-transform duration-300 ease-in-out transform"
-            [class.translate-x-full]="!isDrawerOpen()"
-            [class.translate-x-0]="isDrawerOpen()"
-            [class.hidden]="!isDrawerOpen() && !drawerVisible"
-          >
-            <!-- Optimization -->
-            <app-context-drawer *ngIf="service.selectedContext()"></app-context-drawer>
-          </div>
-        </main>
-      </div>
+      <!-- Main Content Area -->
+      <main class="flex-1 overflow-hidden">
+        <router-outlet></router-outlet>
+      </main>
     </div>
   `,
   styles: [
@@ -158,17 +100,16 @@ import { FreshrService } from './core/services/freshr.service';
 export class App {
   service = inject(FreshrService);
 
-  isDrawerOpen = this.service.selectedContext;
-  drawerVisible = false; // logic to keep DOM present for animation if needed, simplified here.
-
-  activeCount = this.service.incidents; // Actually this is a list, I need count.
-
-  // Correction: activeCount is computed signal returning list.
-  // I need derived signal for length.
-
-  constructor() {}
+  // Computed signal for incident count
+  incidentCount = this.service.incidents;
 
   updateScenario(e: any) {
     this.service.setScenario(e.target.value);
+  }
+
+  toggleIncidentList() {
+    // Optional: Add logic to show incident list overlay if needed
+    // For now, incidents are shown on the kitchen map zones
+    console.log('Notification bell clicked - incidents visible on map zones');
   }
 }

@@ -98,7 +98,7 @@ export interface AnomaliesBySensorResponse {
 }
 
 export interface DevicesResponse {
-devices: Device[];
+  devices: Device[];
 }
 
 export interface Incident {
@@ -108,6 +108,5 @@ export interface Incident {
   requiredAction: string;
   zone_name: string; // resolved
 }
-
 
 export type IncidentStatus = 'Open' | 'Acknowledged' | 'Resolved';
