@@ -4,7 +4,7 @@ Freshr is a real-time food safety monitoring system that detects contamination r
 
 It ingests live kitchen sensor data, finds anomalies, links them to root causes, and triggers actionable incidents for operators and engineers.
 
----
+## **Hosted at:** https://freshr-482201-b6.web.app
 
 ## What It Does
 
