@@ -8,22 +8,22 @@ importers:
   .:
     dependencies:
       '@angular/common':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2)
       '@angular/compiler':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6
       '@angular/core':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2)
       '@angular/forms':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/common@21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(@angular/platform-browser@21.0.6(@angular/common@21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/platform-browser':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/common@21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))
       '@angular/router':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/common@21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(@angular/platform-browser@21.0.6(@angular/common@21.0.6(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.0.6(@angular/compiler@21.0.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       firebase:
         specifier: ^12.7.0
@@ -35,10 +35,10 @@ importers:
         specifier: ^0.0.0
         version: 0.0.0
       rxjs:
-        specifier: ~7.8.0
+        specifier: ~7.8.2
         version: 7.8.2
       tslib:
-        specifier: ^2.3.0
+        specifier: ^2.8.1
         version: 2.8.1
     devDependencies:
       '@angular/build':
@@ -48,13 +48,13 @@ importers:
         specifier: ^21.0.4
         version: 21.0.4(@types/node@25.0.3)(chokidar@4.0.3)
       '@angular/compiler-cli':
-        specifier: ^21.0.0
+        specifier: ^21.0.6
         version: 21.0.6(@angular/compiler@21.0.6)(typescript@5.9.3)
       '@tailwindcss/postcss':
         specifier: ^4.1.18
         version: 4.1.18
       jsdom:
-        specifier: ^27.1.0
+        specifier: ^27.3.0
         version: 27.3.0
       postcss:
         specifier: ^8.5.6
@@ -63,17 +63,17 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18
       typescript:
-        specifier: ~5.9.2
+        specifier: ~5.9.3
         version: 5.9.3
       vitest:
-        specifier: ^4.0.8
+        specifier: ^4.0.16
         version: 4.0.16(@types/node@25.0.3)(jiti@2.6.1)(jsdom@27.3.0)(lightningcss@1.30.2)(sass@1.93.2)
 
 packages:
-  '@acemir/cssom@0.9.29':
+  '@acemir/cssom@0.9.30':
     resolution:
       {
-        integrity: sha512-G90x0VW+9nW4dFajtjCoT+NM0scAfH9Mb08IcjgFHYbfiL/lU04dTF9JuVOi3/OH+DJCQdcIseSXkdCB9Ky6JA==,
+        integrity: sha512-9CnlMCI0LmCIq0olalQqdWrJHPzm0/tw3gzOA9zJSgvFX7Xau3D24mAGa4BtwxwY69nsuJW6kQqqCzf/mEcQgg==,
       }
 
   '@algolia/abtesting@1.6.1':
@@ -5773,7 +5773,7 @@ packages:
       }
 
 snapshots:
-  '@acemir/cssom@0.9.29': {}
+  '@acemir/cssom@0.9.30': {}
 
   '@algolia/abtesting@1.6.1':
     dependencies:
@@ -8192,7 +8192,7 @@ snapshots:
 
   jsdom@27.3.0:
     dependencies:
-      '@acemir/cssom': 0.9.29
+      '@acemir/cssom': 0.9.30
       '@asamuzakjp/dom-selector': 6.7.6
       cssstyle: 5.3.5
       data-urls: 6.0.0
