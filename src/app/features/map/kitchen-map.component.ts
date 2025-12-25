@@ -157,7 +157,7 @@ export class KitchenMapComponent implements AfterViewInit {
       y: zone.y + zone.height / 2 - 6,
       text: zone.name,
       fontSize: 12,
-      fontFamily: 'Arial',
+      fontFamily: 'Helvetica',
       fill: '#0F0F0F',
       align: 'center',
       width: zone.width,
