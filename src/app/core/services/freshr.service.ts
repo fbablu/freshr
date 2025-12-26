@@ -1,19 +1,15 @@
+// src/app/core/services/freshr.service.ts
 import { Injectable, computed, signal, inject } from '@angular/core';
-import { MockApiService } from './mock-api.service';
 import { ApiService } from './api.service';
 import { Anomaly, Incident, Measurement, ZoneState, Device } from '../models/types';
 import { interval, switchMap, map, startWith, from } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
 })
 export class FreshrService {
-  // Dependency Injection - choose API based on environment
-  private mockApi = inject(MockApiService);
-  private realApi = inject(ApiService);
-  private api = environment.useMockApi ? this.mockApi : this.realApi;
+  private api = inject(ApiService);
 
   // Signals for state
   private incidentsMap = signal<Map<string, 'Open' | 'Acknowledged' | 'Resolved'>>(new Map());
@@ -28,7 +24,6 @@ export class FreshrService {
   // Data Streams
   private polling$ = interval(2000).pipe(startWith(0));
 
-  // Use from() to convert Promises to Observables
   readonly devices = toSignal(from(this.api.getDevices()).pipe(map((r) => r.devices)), {
     initialValue: [] as Device[],
   });
@@ -47,14 +42,13 @@ export class FreshrService {
     { initialValue: [] as Measurement[] },
   );
 
-  // Derived State - Map anomalies to Incidents using your existing type structure
+  // Derived State
   readonly incidents = computed(() => {
     const rawAnomalies = this.anomalies();
     const currentStateMap = this.incidentsMap();
     const meas = this.measurements();
 
     return rawAnomalies.map((anomaly) => {
-      // Find linked measurement
       const measurement =
         meas.find((m) => m.sensor_id === anomaly.sensor_id) ||
         ({
@@ -84,7 +78,6 @@ export class FreshrService {
     });
   });
 
-  // Get zone state based on incidents
   readonly zoneStates = computed(() => {
     const incidents = this.incidents();
     const stateMap = new Map<string, ZoneState>();
@@ -95,7 +88,6 @@ export class FreshrService {
       const zoneId = inc.anomaly.zone_id;
       const current = stateMap.get(zoneId);
 
-      // Map severity to ZoneState
       const newState: ZoneState =
         inc.anomaly.severity === 'critical' || inc.anomaly.severity === 'high'
           ? 'unsafe'
@@ -103,7 +95,6 @@ export class FreshrService {
             ? 'at-risk'
             : 'normal';
 
-      // Only update if new state is worse
       if (!current || this.getStateLevel(newState) > this.getStateLevel(current)) {
         stateMap.set(zoneId, newState);
       }
@@ -112,34 +103,29 @@ export class FreshrService {
     return stateMap;
   });
 
-  // Get measurements for a specific zone
   getZoneMeasurements(zoneId: string) {
     return computed(() => {
       return this.measurements().filter((m) => m.zone_id === zoneId);
     });
   }
 
-  // Get incidents for a specific zone
   getZoneIncidents(zoneId: string) {
     return computed(() => {
       return this.incidents().filter((inc) => inc.anomaly.zone_id === zoneId);
     });
   }
 
-  // Get the most recent measurement for a zone
   getZoneRecentMeasurement(zoneId: string) {
     return computed(() => {
       const zoneMeasurements = this.measurements().filter((m) => m.zone_id === zoneId);
       if (zoneMeasurements.length === 0) return null;
 
-      // Sort by timestamp and get most recent
       return zoneMeasurements.sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       )[0];
     });
   }
 
-  // Zone state helpers
   getZoneState(zoneId: string): ZoneState {
     return this.zoneStates().get(zoneId) || 'normal';
   }
@@ -154,7 +140,6 @@ export class FreshrService {
     return levels[state] || 0;
   }
 
-  // Incident management
   acknowledgeIncident(incidentId: string) {
     const map = new Map(this.incidentsMap());
     map.set(incidentId, 'Acknowledged');
@@ -167,7 +152,6 @@ export class FreshrService {
     this.incidentsMap.set(map);
   }
 
-  // Context management
   selectZone(zoneId: string) {
     this.selectedZone.set(zoneId);
     this.selectedContext.set({
@@ -190,14 +174,6 @@ export class FreshrService {
     this.selectedContext.set(null);
   }
 
-  // Scenario management (for demo mode with mock API)
-  setScenario(scenario: any) {
-    if (environment.useMockApi && 'setScenario' in this.mockApi) {
-      this.mockApi.setScenario(scenario);
-    }
-  }
-
-  // Helper methods
   private getRequiredAction(anomaly: Anomaly, measurement: Measurement): string {
     const sensorType = anomaly.sensor_type;
 

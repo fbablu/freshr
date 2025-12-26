@@ -18,7 +18,7 @@
         class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-md border border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors"
       >
         <span class="text-sm font-medium text-slate-700">Downtown Kitchen #402</span>
-        <lucide-icon name="chevron-down" [size]="16" class="text-slate-500"></lucide-icon>
+        <lucide-icon [img]="ChevronDown" [size]="16" class="text-slate-500"></lucide-icon>
       </div>
     </div>
 
@@ -30,7 +30,7 @@
       </div>
 
       <!-- Scenario Toggle (Demo Mode) -->
-      <div class="flex items-center gap-2 border-l border-r border-slate-200 px-6">
+      <!-- <div class="flex items-center gap-2 border-l border-r border-slate-200 px-6">
         <span class="text-xs font-bold text-slate-400 uppercase">Sim:</span>
         <select
           (change)="updateScenario($event)"
@@ -42,7 +42,7 @@
           <option value="contamination">⚠️ Cross Contamination</option>
           <option value="recovery">⚪ Recovery</option>
         </select>
-      </div>
+      </div> -->
 
       <!-- Notification Bell -->
       <button
@@ -51,7 +51,7 @@
         (click)="toggleIncidentList()"
       >
         <lucide-icon
-          name="bell"
+          [img]="Bell"
           [size]="20"
           [class.text-amber-600]="incidentCount() > 0"
           [class.text-slate-600]="incidentCount() === 0"

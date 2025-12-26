@@ -7,7 +7,7 @@ import { FreshrService } from './core/services/freshr.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, LucideAngularModule],
+  imports: [RouterOutlet, CommonModule, LucideAngularModule], // Remove .pick()
   templateUrl: './app.html',
   styles: [
     `
@@ -20,12 +20,11 @@ import { FreshrService } from './core/services/freshr.service';
 export class App {
   service = inject(FreshrService);
 
-  // Computed signal for incident count
-  incidentCount = computed(() => this.service.incidents().length);
+  // Make icons available for template
+  readonly ChevronDown = ChevronDown;
+  readonly Bell = Bell;
 
-  updateScenario(e: any) {
-    this.service.setScenario(e.target.value);
-  }
+  incidentCount = computed(() => this.service.incidents().length);
 
   toggleIncidentList() {
     console.log('Notification bell clicked - incidents visible on map zones');

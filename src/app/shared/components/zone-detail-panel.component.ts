@@ -93,7 +93,7 @@ interface TabConfig {
                       {{ formatSensorType(incident.anomaly.sensor_type) }} Alert
                     </div>
                     <div class="text-xs text-slate-600 mt-1">
-                      Value: {{ incident.measurement.measurement_value?.toFixed(2) }}
+                      Value: {{ incident.measurement.measurement_value.toFixed(2) }}
                       {{ incident.measurement.measurement_type }}
                     </div>
                     <div class="text-xs font-medium text-slate-700 mt-2">
