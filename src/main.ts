@@ -1,5 +1,5 @@
+import 'zone.js';
 import { bootstrapApplication } from '@angular/platform-browser';
-import './app/firebase.config';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 

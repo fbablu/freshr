@@ -1,15 +1,19 @@
-import { Injectable, computed, signal, effect, inject } from '@angular/core';
+import { Injectable, computed, signal, inject } from '@angular/core';
 import { MockApiService } from './mock-api.service';
-import { Anomaly, Incident, Measurement, Zone, ZoneState, Device } from '../models/types';
-import { interval, switchMap, combineLatest, map, startWith, from } from 'rxjs';
+import { ApiService } from './api.service';
+import { Anomaly, Incident, Measurement, ZoneState, Device } from '../models/types';
+import { interval, switchMap, map, startWith, from } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
-  providedIn: 'root', // Ensure this is provided in root
+  providedIn: 'root',
 })
 export class FreshrService {
-  // Dependency Injection
-  private api = inject(MockApiService);
+  // Dependency Injection - choose API based on environment
+  private mockApi = inject(MockApiService);
+  private realApi = inject(ApiService);
+  private api = environment.useMockApi ? this.mockApi : this.realApi;
 
   // Signals for state
   private incidentsMap = signal<Map<string, 'Open' | 'Acknowledged' | 'Resolved'>>(new Map());
@@ -18,6 +22,8 @@ export class FreshrService {
     data: any;
     id?: string;
   } | null>(null);
+
+  readonly selectedZone = signal<string | null>(null);
 
   // Data Streams
   private polling$ = interval(2000).pipe(startWith(0));
@@ -41,119 +47,186 @@ export class FreshrService {
     { initialValue: [] as Measurement[] },
   );
 
-  // Derived State
+  // Derived State - Map anomalies to Incidents using your existing type structure
   readonly incidents = computed(() => {
     const rawAnomalies = this.anomalies();
     const currentStateMap = this.incidentsMap();
-    const dev = this.devices() as Device[];
     const meas = this.measurements();
 
-    // Map anomalies to Incidents
-    return rawAnomalies.map((a) => {
+    return rawAnomalies.map((anomaly) => {
       // Find linked measurement
-      const m = meas.find((x) => x.sensor_id === a.sensor_id) || ({} as Measurement);
-      const d = dev.find((x) => x.sensor_id === a.sensor_id);
+      const measurement =
+        meas.find((m) => m.sensor_id === anomaly.sensor_id) ||
+        ({
+          id: '',
+          sensor_id: anomaly.sensor_id,
+          sensor_type: anomaly.sensor_type,
+          measurement_type: 'unknown',
+          measurement_value: 0,
+          timestamp: anomaly.timestamp,
+          store_id: anomaly.store_id,
+          zone_id: anomaly.zone_id,
+        } as Measurement);
 
-      const status = currentStateMap.get(a.id) || 'Open';
+      const status = currentStateMap.get(anomaly.id) || 'Open';
+      const requiredAction = this.getRequiredAction(anomaly, measurement);
+      const zone_name = this.getZoneName(anomaly.zone_id);
 
-      // Filter: Only show unresolved or recently resolved in lists?
-      // User said "Incidents view... status Open/Ack/Resolved".
-      // We'll return all recent anomalies as incidents.
+      const incident: Incident = {
+        anomaly,
+        measurement,
+        status,
+        requiredAction,
+        zone_name,
+      };
 
-      return {
-        anomaly: a,
-        measurement: m,
-        status: status,
-        requiredAction: this.deriveAction(a.sensor_type, a.severity),
-        zone_name: this.getZoneName(a.zone_id),
-      } as Incident;
+      return incident;
     });
   });
 
+  // Get zone state based on incidents
   readonly zoneStates = computed(() => {
-    const currentIncidents = this.incidents();
-    // Default zones
-    const zones: Record<string, { name: string; state: ZoneState; activeCount: number }> = {
-      'zone-cold-1': { name: 'Cold Storage', state: 'normal', activeCount: 0 },
-      'zone-prep-1': { name: 'Prep', state: 'normal', activeCount: 0 },
-      'zone-cook-1': { name: 'Cook Line', state: 'normal', activeCount: 0 },
-      'zone-plate-1': { name: 'Plating', state: 'normal', activeCount: 0 },
-      'zone-wash-1': { name: 'Dish/Handwash', state: 'normal', activeCount: 0 },
-      'zone-recv-1': { name: 'Receiving', state: 'normal', activeCount: 0 },
-    };
+    const incidents = this.incidents();
+    const stateMap = new Map<string, ZoneState>();
 
-    currentIncidents.forEach((inc) => {
-      if (inc.status === 'Resolved') return; // Don't count resolved for risk state
+    incidents.forEach((inc) => {
+      if (inc.status === 'Resolved') return;
 
-      const z = zones[inc.anomaly.zone_id];
-      if (!z) return;
+      const zoneId = inc.anomaly.zone_id;
+      const current = stateMap.get(zoneId);
 
-      z.activeCount++;
+      // Map severity to ZoneState
+      const newState: ZoneState =
+        inc.anomaly.severity === 'critical' || inc.anomaly.severity === 'high'
+          ? 'unsafe'
+          : inc.anomaly.severity === 'medium'
+            ? 'at-risk'
+            : 'normal';
 
-      if (inc.anomaly.severity === 'critical' || inc.anomaly.severity === 'high') {
-        z.state = 'unsafe';
-      } else if (
-        (inc.anomaly.severity === 'medium' || inc.anomaly.severity === 'low') &&
-        z.state !== 'unsafe'
-      ) {
-        z.state = 'at-risk';
+      // Only update if new state is worse
+      if (!current || this.getStateLevel(newState) > this.getStateLevel(current)) {
+        stateMap.set(zoneId, newState);
       }
     });
 
-    return zones;
+    return stateMap;
   });
 
-  constructor() {}
-
-  acknowledgeIncident(id: string) {
-    this.incidentsMap.update((map) => {
-      const newMap = new Map(map);
-      newMap.set(id, 'Acknowledged');
-      return newMap;
+  // Get measurements for a specific zone
+  getZoneMeasurements(zoneId: string) {
+    return computed(() => {
+      return this.measurements().filter((m) => m.zone_id === zoneId);
     });
   }
 
-  resolveIncident(id: string) {
-    this.incidentsMap.update((map) => {
-      const newMap = new Map(map);
-      newMap.set(id, 'Resolved');
-      return newMap;
+  // Get incidents for a specific zone
+  getZoneIncidents(zoneId: string) {
+    return computed(() => {
+      return this.incidents().filter((inc) => inc.anomaly.zone_id === zoneId);
     });
   }
 
-  getScenario() {
-    // expose control
+  // Get the most recent measurement for a zone
+  getZoneRecentMeasurement(zoneId: string) {
+    return computed(() => {
+      const zoneMeasurements = this.measurements().filter((m) => m.zone_id === zoneId);
+      if (zoneMeasurements.length === 0) return null;
+
+      // Sort by timestamp and get most recent
+      return zoneMeasurements.sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      )[0];
+    });
   }
 
-  setScenario(name: any) {
-    this.api.setScenario(name);
+  // Zone state helpers
+  getZoneState(zoneId: string): ZoneState {
+    return this.zoneStates().get(zoneId) || 'normal';
   }
 
-  private deriveAction(sensorType: string, severity: string): string {
-    if (
-      sensorType === 'cold_storage_temperature' &&
-      (severity === 'high' || severity === 'critical')
-    ) {
-      return 'HOLD + VERIFY TEMP';
-    }
-    if (sensorType === 'handwash' || sensorType === 'dish_wash') {
-      return 'SANITIZE + RETRAIN';
-    }
-    if (sensorType === 'ingredient_flow' || sensorType === 'station_contact') {
-      return 'DISCARD + SANITIZE';
-    }
-    return 'MONITOR';
+  private getStateLevel(state: ZoneState): number {
+    const levels: Record<ZoneState, number> = {
+      normal: 0,
+      recovering: 1,
+      'at-risk': 2,
+      unsafe: 3,
+    };
+    return levels[state] || 0;
   }
 
-  private getZoneName(id: string): string {
-    const map: any = {
+  // Incident management
+  acknowledgeIncident(incidentId: string) {
+    const map = new Map(this.incidentsMap());
+    map.set(incidentId, 'Acknowledged');
+    this.incidentsMap.set(map);
+  }
+
+  resolveIncident(incidentId: string) {
+    const map = new Map(this.incidentsMap());
+    map.set(incidentId, 'Resolved');
+    this.incidentsMap.set(map);
+  }
+
+  // Context management
+  selectZone(zoneId: string) {
+    this.selectedZone.set(zoneId);
+    this.selectedContext.set({
+      type: 'zone',
+      data: { zone_id: zoneId },
+      id: zoneId,
+    });
+  }
+
+  selectIncident(incident: Incident) {
+    this.selectedContext.set({
+      type: 'incident',
+      data: incident,
+      id: incident.anomaly.id,
+    });
+  }
+
+  clearSelection() {
+    this.selectedZone.set(null);
+    this.selectedContext.set(null);
+  }
+
+  // Scenario management (for demo mode with mock API)
+  setScenario(scenario: any) {
+    if (environment.useMockApi && 'setScenario' in this.mockApi) {
+      this.mockApi.setScenario(scenario);
+    }
+  }
+
+  // Helper methods
+  private getRequiredAction(anomaly: Anomaly, measurement: Measurement): string {
+    const sensorType = anomaly.sensor_type;
+
+    switch (sensorType) {
+      case 'cold_storage_temperature':
+        return measurement.measurement_value > 8 ? 'HOLD ITEMS + VERIFY TEMP' : 'VERIFY TEMP';
+      case 'handwash':
+        return 'SANITIZE + RETRAIN';
+      case 'station_contact':
+        return 'SANITIZE STATION';
+      case 'cook_temp':
+        return 'VERIFY COOKING TEMP';
+      case 'dish_wash':
+        return 'RE-WASH + VERIFY TEMP';
+      default:
+        return 'INVESTIGATE';
+    }
+  }
+
+  private getZoneName(zoneId: string): string {
+    const zoneNames: Record<string, string> = {
+      'zone-recv-1': 'Receiving',
       'zone-cold-1': 'Cold Storage',
-      'zone-prep-1': 'Prep',
+      'zone-prep-1': 'Prep Station',
       'zone-cook-1': 'Cook Line',
       'zone-plate-1': 'Plating',
-      'zone-wash-1': 'Dish/Handwash',
-      'zone-recv-1': 'Receiving',
+      'zone-wash-1': 'Washing',
     };
-    return map[id] || id;
+
+    return zoneNames[zoneId] || zoneId.replace(/-/g, ' ').replace(/zone/i, '').trim();
   }
 }

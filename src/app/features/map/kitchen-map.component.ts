@@ -1,9 +1,9 @@
-// kitchen-map.component.ts
 import { Component, inject, signal, viewChild, AfterViewInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { FreshrService } from '../../core/services/freshr.service';
 import { StageComponent, CoreShapeComponent, NgKonvaEventObject } from 'ng2-konva';
+import { ZoneDetailPanelComponent } from '../../shared/components/zone-detail-panel.component';
 import Konva from 'konva';
 
 interface Zone {
@@ -50,7 +50,13 @@ interface Bounds {
 @Component({
   selector: 'app-kitchen-map',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, StageComponent, CoreShapeComponent],
+  imports: [
+    CommonModule,
+    LucideAngularModule,
+    StageComponent,
+    CoreShapeComponent,
+    ZoneDetailPanelComponent,
+  ],
   templateUrl: './kitchen-map.component.html',
   styleUrls: ['./kitchen-map.component.css'],
 })
@@ -59,6 +65,7 @@ export class KitchenMapComponent implements AfterViewInit {
   incidentCount = this.service.incidents;
 
   stage = viewChild<StageComponent>('stage');
+  detailPanel = viewChild<ZoneDetailPanelComponent>('detailPanel');
 
   selectedZone = signal<string | null>(null);
   zoomLevel = signal(100);
@@ -75,12 +82,13 @@ export class KitchenMapComponent implements AfterViewInit {
     draggable: true,
   };
 
+  // Updated zones with correct IDs matching backend
   zones: Zone[] = [
-    { id: 'food prep', name: 'Food Prep', x: 0.5, y: 19.5, width: 127, height: 115 },
-    { id: 'cooking', name: 'Cooking', x: 128.5, y: 19.5, width: 89, height: 115 },
-    { id: 'service', name: 'Service', x: 218.5, y: 19.5, width: 71, height: 115 },
-    { id: 'washing', name: 'Washing', x: 0.5, y: 135.5, width: 144, height: 48 },
-    { id: 'storage', name: 'Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
+    { id: 'zone-recv-1', name: 'Receiving', x: 0.5, y: 19.5, width: 127, height: 115 },
+    { id: 'zone-cold-1', name: 'Cold Storage', x: 128.5, y: 19.5, width: 89, height: 115 },
+    { id: 'zone-prep-1', name: 'Prep Station', x: 218.5, y: 19.5, width: 71, height: 115 },
+    { id: 'zone-cook-1', name: 'Cook Line', x: 0.5, y: 135.5, width: 144, height: 48 },
+    { id: 'zone-wash-1', name: 'Washing', x: 145.5, y: 135.5, width: 144, height: 48 },
   ];
 
   ngAfterViewInit() {
@@ -139,14 +147,42 @@ export class KitchenMapComponent implements AfterViewInit {
   }
 
   getZoneConfig(zone: Zone): ZoneConfig {
+    const zoneState = this.service.getZoneState(zone.id);
+    let fillColor = '#f0fdf4'; // green-50 for normal
+    let strokeColor = '#10b981'; // green-500 for normal
+
+    switch (zoneState) {
+      case 'unsafe':
+        fillColor = '#fef2f2'; // red-50
+        strokeColor = '#ef4444'; // red-500
+        break;
+      case 'at-risk':
+        fillColor = '#fefce8'; // yellow-50
+        strokeColor = '#eab308'; // yellow-500
+        break;
+      case 'recovering':
+        fillColor = '#eff6ff'; // blue-50
+        strokeColor = '#3b82f6'; // blue-500
+        break;
+      case 'normal':
+        // Already set as default
+        break;
+    }
+
+    // Highlight if selected
+    if (this.selectedZone() === zone.id) {
+      fillColor = '#dbeafe'; // blue-100
+      strokeColor = '#2563eb'; // blue-600
+    }
+
     return {
       x: zone.x,
       y: zone.y,
       width: zone.width,
       height: zone.height,
-      fill: this.selectedZone() === zone.id ? '#dbeafe' : 'white',
-      stroke: 'black',
-      strokeWidth: 1,
+      fill: fillColor,
+      stroke: strokeColor,
+      strokeWidth: this.selectedZone() === zone.id ? 2 : 1,
       zoneId: zone.id,
     };
   }
@@ -166,7 +202,13 @@ export class KitchenMapComponent implements AfterViewInit {
 
   handleZoneClick(event: NgKonvaEventObject<MouseEvent>, zoneId: string) {
     this.selectedZone.set(zoneId);
-    console.log('Zone clicked:', zoneId);
+    this.service.selectZone(zoneId);
+
+    // Update the detail panel
+    const panel = this.detailPanel();
+    if (panel) {
+      panel.setZone(zoneId);
+    }
   }
 
   handleZoneMouseEnter(event: NgKonvaEventObject<MouseEvent>) {
@@ -184,7 +226,9 @@ export class KitchenMapComponent implements AfterViewInit {
       stage.container().style.cursor = 'grab';
     }
     const target = event.event.target as Konva.Rect;
-    target.strokeWidth(1);
+    if (this.selectedZone() !== (target as any).attrs.zoneId) {
+      target.strokeWidth(1);
+    }
   }
 
   handleWheel(event: NgKonvaEventObject<WheelEvent>) {
@@ -239,12 +283,8 @@ export class KitchenMapComponent implements AfterViewInit {
     return zone.id;
   }
 
-  updateScenario(e: Event) {
-    const target = e.target as HTMLSelectElement;
-    this.service.setScenario(target.value);
-  }
-
-  toggleIncidentList() {
-    console.log('Notification bell clicked');
+  handleClosePanel() {
+    this.selectedZone.set(null);
+    this.service.clearSelection();
   }
 }

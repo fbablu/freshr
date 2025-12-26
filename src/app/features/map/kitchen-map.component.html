@@ -1,12 +1,14 @@
-<!-- kitchen-map.component.html -->
 <div class="h-full flex gap-4 p-6">
   <!-- Kitchen Map Area -->
   <div class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 flex flex-col">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-xl font-bold">Kitchen Layout</h2>
+      <div>
+        <h2 class="text-xl font-bold">Kitchen Map</h2>
+        <p class="text-sm text-slate-600">Real-time zone monitoring</p>
+      </div>
       <button
         (click)="resetView()"
-        class="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 rounded"
+        class="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 rounded transition-colors"
       >
         Reset View
       </button>
@@ -42,24 +44,8 @@
     </div>
   </div>
 
-  <!-- Right Panel -->
-  <div class="w-80 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-    <h3 class="font-bold mb-3">Active Incidents</h3>
-    <div *ngIf="incidentCount().length === 0" class="text-slate-500 text-sm">
-      No active incidents
-    </div>
-    <div *ngIf="incidentCount().length > 0" class="space-y-2">
-      <div
-        *ngFor="let incident of incidentCount()"
-        class="p-3 bg-amber-50 border border-amber-200 rounded-lg"
-      >
-        <p class="text-sm font-medium">{{ incident }}</p>
-      </div>
-    </div>
-
-    <div *ngIf="selectedZone()" class="mt-4 pt-4 border-t">
-      <h4 class="font-medium mb-2">Selected Zone</h4>
-      <p class="text-sm text-slate-600">{{ selectedZone() }}</p>
-    </div>
+  <!-- Right Panel - Zone Details -->
+  <div class="w-96 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <app-zone-detail-panel #detailPanel (close)="handleClosePanel()"></app-zone-detail-panel>
   </div>
 </div>
