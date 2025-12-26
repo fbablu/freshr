@@ -1,15 +1,17 @@
 import json
 import os
-import random
 import socket
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean, pstdev
 
 from confluent_kafka import Consumer
 from flask import Flask
 from google.cloud import firestore
 from jsonschema import ValidationError, validate
+
+from src.datastream.processing.ai_client import predict_anomaly
 
 PROCESSED_TOPIC = os.getenv("PROCESSED_TOPIC", "sensor-events-processed")
 PROCESSOR_ID = os.getenv("PROCESSOR_ID") or socket.gethostname()
@@ -42,10 +44,23 @@ ANOMALY_SENSOR_TYPES = {
 }
 
 
-def pick_anomaly_label(sensor_type: str) -> str:
-    if sensor_type not in ANOMALY_SENSOR_TYPES:
+def detect_anomaly_from_history(values, current, z_threshold=2.5, min_history=5):
+    """Return 'positive' if too high, 'negative' if too low, else 'none'."""
+    numeric_history = [v for v in values if isinstance(v, (int, float))]
+    if not isinstance(current, (int, float)):
         return "none"
-    return random.choice(["positive", "negative", "none"])
+    if len(numeric_history) < min_history:
+        return "none"
+    mu = mean(numeric_history)
+    sigma = pstdev(numeric_history) if len(numeric_history) > 1 else 0.0
+    if sigma == 0:
+        return "none"
+    z = (current - mu) / sigma
+    if z > z_threshold:
+        return "positive"
+    if z < -z_threshold:
+        return "negative"
+    return "none"
 
 
 def persist_anomaly(payload: dict):
@@ -91,7 +106,40 @@ def main():
         if not measurement_id or not sensor_type:
             continue
 
-        anomaly = pick_anomaly_label(sensor_type)
+        sensor_id = event.get("sensor_id")
+        current_value = event.get("measurement_value")
+        history_values = []
+        vertex_anomaly = None
+        if sensor_id and sensor_type in ANOMALY_SENSOR_TYPES:
+            history_ref = (
+                db.collection(DEVICE_COLLECTION)
+                .where("sensor_id", "==", sensor_id)
+                .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                .limit(50)
+            )
+            try:
+                for doc in history_ref.stream():
+                    data = doc.to_dict() or {}
+                    val = data.get("measurement_value")
+                    if isinstance(val, (int, float)):
+                        history_values.append(val)
+                if history_values:
+                    mu = mean(history_values)
+                    sigma = pstdev(history_values) if len(history_values) > 1 else 0.0
+                    vertex_anomaly = predict_anomaly(
+                        current_value, sensor_id, sensor_type, mu, sigma
+                    )
+            except Exception as exc:
+                print("Failed to load history for anomaly detection:", exc)
+
+        if vertex_anomaly:
+            anomaly = vertex_anomaly
+        else:
+            anomaly = (
+                detect_anomaly_from_history(history_values, current_value)
+                if sensor_type in ANOMALY_SENSOR_TYPES
+                else "none"
+            )
         timestamp = event.get("timestamp") or datetime.now(timezone.utc).isoformat()
 
         db.collection(DEVICE_COLLECTION).document(measurement_id).set(
