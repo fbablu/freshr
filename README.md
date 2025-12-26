@@ -11,6 +11,7 @@ The backend streams physical and operational kitchen signals through Kafka, dete
 Sensors → Kafka (Confluent) → Processor → Firestore → API → Web UI
 
 **Tech stack**
+
 - Kafka / Confluent
 - Google Cloud Run
 - Google Firestore
@@ -25,24 +26,29 @@ Sensors → Kafka (Confluent) → Processor → Firestore → API → Web UI
 ### Sensor Model
 
 **Physical sensors**
+
 - cold_storage_temperature
 - ambient_kitchen_temperature
 - humidity
 - time_out_of_range_duration
 
 **Operational sensors**
+
 - handwash_station_usage
 - delivery_arrival
 - shift_change
 
 Each sensor type publishes to its own Kafka topic:
+
 - `sensor-physical-*`
 - `sensor-operational-*`
 
 All processed events are forwarded to:
+
 - `sensor-events-processed`
 
 Schemas live in:
+
 ```
 
 src/datastream/schemas/
@@ -77,6 +83,7 @@ pip install -r requirements.txt
 ### Cloud Build & Deploy
 
 Build and push images:
+
 ```
 
 ./scripts/build_cloud.sh
@@ -85,6 +92,7 @@ Build and push images:
 ```
 
 Set Kafka environment variables:
+
 ```
 
 export KAFKA_BOOTSTRAP=<cluster>.confluent.cloud:9092
@@ -96,6 +104,7 @@ export KAFKA_SASL_PASSWORD=<API_SECRET>
 ```
 
 Deploy services:
+
 ```
 
 ./scripts/deploy_cloud_run.sh
@@ -104,6 +113,7 @@ Deploy services:
 ```
 
 Tear down services:
+
 ```
 
 ./scripts/delete_cloud_run.sh
@@ -127,6 +137,7 @@ Producer, consumer, and processor run as long-lived services with a `/healthz` e
 ### API (Cloud Run)
 
 **Measurements**
+
 ```
 
 GET /measurements/recent
@@ -134,6 +145,7 @@ GET /measurements/recent
 ```
 
 **Anomalies**
+
 ```
 
 GET /anomalies/recent
@@ -141,6 +153,7 @@ GET /anomalies/recent
 ```
 
 Example:
+
 ```
 
 curl [https://dynamap-api-lfc277t73a-uc.a.run.app/measurements/recent](https://dynamap-api-lfc277t73a-uc.a.run.app/measurements/recent)
@@ -149,6 +162,7 @@ curl [https://dynamap-api-lfc277t73a-uc.a.run.app/anomalies/recent](https://dyna
 ```
 
 Additional API documentation:
+
 ```
 
 src/api/README.md
@@ -160,6 +174,7 @@ src/api/README.md
 ## Frontend
 
 Hosted at:
+
 ```
 
 [https://freshr-482201-b6.web.app](https://freshr-482201-b6.web.app)
@@ -179,6 +194,7 @@ ng serve
 ```
 
 Deploy:
+
 ```
 
 firebase deploy
@@ -200,6 +216,7 @@ firebase deploy
 ### Demo / Simulation
 
 The simulator can generate:
+
 - Normal operations
 - Hygiene failures
 - Temperature drift
@@ -213,4 +230,7 @@ Used to trigger monitors and anomalies in real time.
 ## License
 
 MIT License
+
+```
+
 ```

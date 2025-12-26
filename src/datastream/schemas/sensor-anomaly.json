@@ -1,12 +1,6 @@
 {
   "type": "object",
-  "required": [
-    "measurement_id",
-    "sensor_type",
-    "anomaly",
-    "processed_by",
-    "timestamp"
-  ],
+  "required": ["measurement_id", "sensor_type", "anomaly", "processed_by", "timestamp"],
   "properties": {
     "measurement_id": { "type": "string" },
     "sensor_type": { "type": "string" },

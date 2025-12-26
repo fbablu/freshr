@@ -8,3 +8,4 @@ cd "$ROOT_DIR"
 pytest
 black .
 ruff check .
+prettier . --write
