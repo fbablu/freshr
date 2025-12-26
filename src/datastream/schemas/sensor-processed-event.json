@@ -16,7 +16,9 @@
     "sensor_type": { "type": "string" },
     "timestamp": { "type": "string", "format": "date-time" },
     "frequency_hz": { "type": "number" },
-    "measurement_value": { "oneOf": [ { "type": "number" }, { "type": "string" } ] },
+    "measurement_value": {
+      "oneOf": [{ "type": "number" }, { "type": "string" }]
+    },
     "measurement_type": { "type": "string" },
     "source_topic": { "type": "string" }
   },

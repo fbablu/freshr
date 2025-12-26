@@ -1,11 +1,11 @@
 steps:
-- name: gcr.io/cloud-builders/docker
-  args:
-  - build
-  - -f
-  - src/datastream/processing/Dockerfile
-  - -t
-  - us-central1-docker.pkg.dev/rich-archery-482201-b6/dynamap/dynamap-processing
-  - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - src/datastream/processing/Dockerfile
+      - -t
+      - us-central1-docker.pkg.dev/rich-archery-482201-b6/dynamap/dynamap-processing
+      - .
 images:
-- us-central1-docker.pkg.dev/rich-archery-482201-b6/dynamap/dynamap-processing
+  - us-central1-docker.pkg.dev/rich-archery-482201-b6/dynamap/dynamap-processing
