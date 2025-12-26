@@ -84,11 +84,11 @@ export class KitchenMapComponent implements AfterViewInit {
 
   // Updated zones with correct IDs matching backend
   zones: Zone[] = [
-    { id: 'zone-recv-1', name: 'Receiving', x: 0.5, y: 19.5, width: 127, height: 115 },
-    { id: 'zone-cold-1', name: 'Cold Storage', x: 128.5, y: 19.5, width: 89, height: 115 },
-    { id: 'zone-prep-1', name: 'Prep Station', x: 218.5, y: 19.5, width: 71, height: 115 },
-    { id: 'zone-cook-1', name: 'Cook Line', x: 0.5, y: 135.5, width: 144, height: 48 },
-    { id: 'zone-wash-1', name: 'Washing', x: 145.5, y: 135.5, width: 144, height: 48 },
+    { id: 'zone-recv-1', name: 'Food Prep', x: 0.5, y: 19.5, width: 127, height: 115 },
+    { id: 'zone-cold-1', name: 'Cooking', x: 128.5, y: 19.5, width: 89, height: 115 },
+    { id: 'zone-prep-1', name: 'Service', x: 218.5, y: 19.5, width: 71, height: 115 },
+    { id: 'zone-cook-1', name: 'Washing', x: 0.5, y: 135.5, width: 144, height: 48 },
+    { id: 'zone-wash-1', name: 'Cold Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
   ];
 
   ngAfterViewInit() {

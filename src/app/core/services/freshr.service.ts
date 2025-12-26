@@ -68,8 +68,8 @@ export class FreshrService {
       .map((anomaly) => {
         const measurement = meas.find((m) => m.id === anomaly.measurement_id);
 
-        // Skip if no matching measurement found
-        if (!measurement) return null;
+        // Skip if no matching measurement found or no zone_id
+        if (!measurement || !measurement.zone_id) return null;
 
         const status = currentStateMap.get(anomaly.id) || 'Open';
         const requiredAction = this.getRequiredAction(anomaly, measurement);
@@ -93,6 +93,7 @@ export class FreshrService {
       })
       .filter((inc): inc is Incident => inc !== null);
   });
+
   readonly zoneStates = computed(() => {
     const incidents = this.incidents();
     const stateMap = new Map<string, ZoneState>();
@@ -210,7 +211,10 @@ export class FreshrService {
     }
   }
 
-  private getZoneName(zoneId: string): string {
+  private getZoneName(zoneId: string | undefined | null): string {
+    // Handle undefined/null zone_id
+    if (!zoneId) return 'Unknown Zone';
+
     const zoneNames: Record<string, string> = {
       'zone-recv-1': 'Receiving',
       'zone-cold-1': 'Cold Storage',
