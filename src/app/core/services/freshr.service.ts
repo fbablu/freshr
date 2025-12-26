@@ -42,42 +42,57 @@ export class FreshrService {
     { initialValue: [] as Measurement[] },
   );
 
-  // Derived State
+  private calculateSeverity(
+    anomaly: Anomaly,
+    measurement: Measurement,
+  ): 'low' | 'medium' | 'high' | 'critical' {
+    if (anomaly.anomaly === 'none') return 'low';
+
+    // Temperature anomalies
+    if (anomaly.sensor_type === 'cold_storage_temperature') {
+      if (measurement.measurement_value > 8) return 'critical';
+      if (measurement.measurement_value > 5) return 'high';
+      return 'medium';
+    }
+
+    // Default to medium for other anomalies
+    return anomaly.anomaly === 'positive' ? 'high' : 'medium';
+  }
+
   readonly incidents = computed(() => {
     const rawAnomalies = this.anomalies();
     const currentStateMap = this.incidentsMap();
     const meas = this.measurements();
 
-    return rawAnomalies.map((anomaly) => {
-      const measurement =
-        meas.find((m) => m.sensor_id === anomaly.sensor_id) ||
-        ({
-          id: '',
-          sensor_id: anomaly.sensor_id,
-          sensor_type: anomaly.sensor_type,
-          measurement_type: 'unknown',
-          measurement_value: 0,
-          timestamp: anomaly.timestamp,
-          store_id: anomaly.store_id,
-          zone_id: anomaly.zone_id,
-        } as Measurement);
+    return rawAnomalies
+      .map((anomaly) => {
+        const measurement = meas.find((m) => m.id === anomaly.measurement_id);
 
-      const status = currentStateMap.get(anomaly.id) || 'Open';
-      const requiredAction = this.getRequiredAction(anomaly, measurement);
-      const zone_name = this.getZoneName(anomaly.zone_id);
+        // Skip if no matching measurement found
+        if (!measurement) return null;
 
-      const incident: Incident = {
-        anomaly,
-        measurement,
-        status,
-        requiredAction,
-        zone_name,
-      };
+        const status = currentStateMap.get(anomaly.id) || 'Open';
+        const requiredAction = this.getRequiredAction(anomaly, measurement);
+        const zone_name = this.getZoneName(measurement.zone_id);
 
-      return incident;
-    });
+        const incident: Incident = {
+          anomaly: {
+            ...anomaly,
+            zone_id: measurement.zone_id,
+            store_id: measurement.store_id,
+            sensor_id: measurement.sensor_id,
+            severity: this.calculateSeverity(anomaly, measurement),
+          },
+          measurement,
+          status,
+          requiredAction,
+          zone_name,
+        };
+
+        return incident;
+      })
+      .filter((inc): inc is Incident => inc !== null);
   });
-
   readonly zoneStates = computed(() => {
     const incidents = this.incidents();
     const stateMap = new Map<string, ZoneState>();
@@ -85,7 +100,9 @@ export class FreshrService {
     incidents.forEach((inc) => {
       if (inc.status === 'Resolved') return;
 
-      const zoneId = inc.anomaly.zone_id;
+      const zoneId = inc.measurement.zone_id;
+      if (!zoneId) return;
+
       const current = stateMap.get(zoneId);
 
       const newState: ZoneState =
