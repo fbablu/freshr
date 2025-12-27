@@ -216,6 +216,10 @@ export class FreshrService {
     this.selectedContext.set(null);
   }
 
+  setScenario(scenario: Scenario) {
+    this.activeScenario.set(scenario);
+  }
+
   private getRequiredAction(anomaly: Anomaly, measurement: Measurement): string {
     const sensorType = anomaly.sensor_type;
 

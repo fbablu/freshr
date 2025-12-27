@@ -106,7 +106,7 @@ export KAFKA_SASL_PASSWORD=<API_SECRET>
 Deploy services:
 
 ```
-
+source .env
 ./scripts/deploy_cloud_run.sh
 ./scripts/deploy_cloud_run.sh --api-only
 

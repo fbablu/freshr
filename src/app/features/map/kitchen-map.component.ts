@@ -1,9 +1,20 @@
-import { Component, inject, signal, viewChild, AfterViewInit, HostListener } from '@angular/core';
+// src/app/features/map/kitchen-map.component.ts
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  viewChild,
+  AfterViewInit,
+  HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { FreshrService } from '../../core/services/freshr.service';
 import { StageComponent, CoreShapeComponent, NgKonvaEventObject } from 'ng2-konva';
 import { ZoneDetailPanelComponent } from '../../shared/components/zone-detail-panel.component';
+import { ZONE_DISPLAY_NAMES } from '../../config/sensor-zone-mapping';
+import { ZoneState } from '../../core/models/types';
 import Konva from 'konva';
 
 interface Zone {
@@ -13,7 +24,6 @@ interface Zone {
   y: number;
   width: number;
   height: number;
-  status?: 'normal' | 'warning' | 'alert';
 }
 
 interface ZoneConfig {
@@ -24,6 +34,7 @@ interface ZoneConfig {
   fill: string;
   stroke: string;
   strokeWidth: number;
+  cornerRadius: number;
   zoneId: string;
 }
 
@@ -36,6 +47,26 @@ interface TextConfig {
   fill: string;
   align: string;
   width: number;
+}
+
+interface BadgeConfig {
+  x: number;
+  y: number;
+  radius: number;
+  fill: string;
+  visible: boolean;
+}
+
+interface BadgeTextConfig {
+  x: number;
+  y: number;
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  fill: string;
+  align: string;
+  width: number;
+  visible: boolean;
 }
 
 interface Bounds {
@@ -62,7 +93,6 @@ interface Bounds {
 })
 export class KitchenMapComponent implements AfterViewInit {
   service = inject(FreshrService);
-  incidentCount = this.service.incidents;
 
   stage = viewChild<StageComponent>('stage');
   detailPanel = viewChild<ZoneDetailPanelComponent>('detailPanel');
@@ -82,14 +112,73 @@ export class KitchenMapComponent implements AfterViewInit {
     draggable: true,
   };
 
-  // Updated zones with correct IDs matching backend
+  // Zones with IDs matching backend + proper display names
   zones: Zone[] = [
-    { id: 'zone-recv-1', name: 'Food Prep', x: 0.5, y: 19.5, width: 127, height: 115 },
-    { id: 'zone-cold-1', name: 'Cooking', x: 128.5, y: 19.5, width: 89, height: 115 },
-    { id: 'zone-prep-1', name: 'Service', x: 218.5, y: 19.5, width: 71, height: 115 },
-    { id: 'zone-cook-1', name: 'Washing', x: 0.5, y: 135.5, width: 144, height: 48 },
-    { id: 'zone-wash-1', name: 'Cold Storage', x: 145.5, y: 135.5, width: 144, height: 48 },
+    {
+      id: 'zone-recv-1',
+      name: ZONE_DISPLAY_NAMES['zone-recv-1'] || 'Receiving',
+      x: 0.5,
+      y: 19.5,
+      width: 127,
+      height: 115,
+    },
+    {
+      id: 'zone-cold-1',
+      name: ZONE_DISPLAY_NAMES['zone-cold-1'] || 'Cold Storage',
+      x: 128.5,
+      y: 19.5,
+      width: 89,
+      height: 115,
+    },
+    {
+      id: 'zone-prep-1',
+      name: ZONE_DISPLAY_NAMES['zone-prep-1'] || 'Prep Station',
+      x: 218.5,
+      y: 19.5,
+      width: 71,
+      height: 115,
+    },
+    {
+      id: 'zone-cook-1',
+      name: ZONE_DISPLAY_NAMES['zone-cook-1'] || 'Cook Line',
+      x: 0.5,
+      y: 135.5,
+      width: 144,
+      height: 48,
+    },
+    {
+      id: 'zone-wash-1',
+      name: ZONE_DISPLAY_NAMES['zone-wash-1'] || 'Washing',
+      x: 145.5,
+      y: 135.5,
+      width: 144,
+      height: 48,
+    },
   ];
+
+  // Computed: Total active incidents count
+  totalActiveIncidents = computed(() => {
+    return this.service.incidents().filter((inc) => inc.status !== 'Resolved').length;
+  });
+
+  // Computed: Zone incident counts for badges
+  zoneIncidentCounts = computed(() => {
+    const incidents = this.service.incidents();
+    const counts = new Map<string, number>();
+
+    incidents.forEach((inc) => {
+      if (inc.status === 'Resolved') return;
+      const zoneId = inc.measurement?.zone_id;
+      if (zoneId) {
+        counts.set(zoneId, (counts.get(zoneId) || 0) + 1);
+      }
+    });
+
+    return counts;
+  });
+
+  // Computed: Active scenario info
+  activeScenarioTitle = computed(() => this.service.activeScenario().title);
 
   ngAfterViewInit() {
     this.fitStageToContainer();
@@ -131,14 +220,12 @@ export class KitchenMapComponent implements AfterViewInit {
 
     const bounds = this.getZoneBounds();
 
-    // Calculate scale to fit with padding
     const scaleX = containerWidth / (bounds.width * (1 + this.PADDING_FACTOR * 2));
     const scaleY = containerHeight / (bounds.height * (1 + this.PADDING_FACTOR * 2));
     const scale = Math.min(scaleX, scaleY);
 
     stage.scale({ x: scale, y: scale });
 
-    // Center the content
     const offsetX = (containerWidth - bounds.width * scale) / 2 - bounds.minX * scale;
     const offsetY = (containerHeight - bounds.height * scale) / 2 - bounds.minY * scale;
     stage.position({ x: offsetX, y: offsetY });
@@ -146,10 +233,16 @@ export class KitchenMapComponent implements AfterViewInit {
     this.zoomLevel.set(Math.round(scale * 100));
   }
 
+  getZoneState(zoneId: string): ZoneState {
+    return this.service.getZoneState(zoneId);
+  }
+
   getZoneConfig(zone: Zone): ZoneConfig {
-    const zoneState = this.service.getZoneState(zone.id);
-    let fillColor = '#f0fdf4'; // green-50 for normal
-    let strokeColor = '#10b981'; // green-500 for normal
+    const zoneState = this.getZoneState(zone.id);
+    const isSelected = this.selectedZone() === zone.id;
+
+    let fillColor: string;
+    let strokeColor: string;
 
     switch (zoneState) {
       case 'unsafe':
@@ -164,13 +257,12 @@ export class KitchenMapComponent implements AfterViewInit {
         fillColor = '#eff6ff'; // blue-50
         strokeColor = '#3b82f6'; // blue-500
         break;
-      case 'normal':
-        // Already set as default
-        break;
+      default:
+        fillColor = '#f0fdf4'; // green-50
+        strokeColor = '#10b981'; // green-500
     }
 
-    // Highlight if selected
-    if (this.selectedZone() === zone.id) {
+    if (isSelected) {
       fillColor = '#dbeafe'; // blue-100
       strokeColor = '#2563eb'; // blue-600
     }
@@ -182,7 +274,8 @@ export class KitchenMapComponent implements AfterViewInit {
       height: zone.height,
       fill: fillColor,
       stroke: strokeColor,
-      strokeWidth: this.selectedZone() === zone.id ? 2 : 1,
+      strokeWidth: isSelected ? 2 : 1,
+      cornerRadius: 4,
       zoneId: zone.id,
     };
   }
@@ -193,10 +286,38 @@ export class KitchenMapComponent implements AfterViewInit {
       y: zone.y + zone.height / 2 - 6,
       text: zone.name,
       fontSize: 12,
-      fontFamily: 'Helvetica',
-      fill: '#0F0F0F',
+      fontFamily: 'Inter, Helvetica, sans-serif',
+      fill: '#1e293b', // slate-800
       align: 'center',
       width: zone.width,
+    };
+  }
+
+  // Badge for incident count (circle)
+  getBadgeConfig(zone: Zone): BadgeConfig {
+    const count = this.zoneIncidentCounts().get(zone.id) || 0;
+    return {
+      x: zone.x + zone.width - 10,
+      y: zone.y + 10,
+      radius: 8,
+      fill: count > 0 ? '#ef4444' : 'transparent',
+      visible: count > 0,
+    };
+  }
+
+  // Badge text (number)
+  getBadgeTextConfig(zone: Zone): BadgeTextConfig {
+    const count = this.zoneIncidentCounts().get(zone.id) || 0;
+    return {
+      x: zone.x + zone.width - 18,
+      y: zone.y + 5,
+      text: count.toString(),
+      fontSize: 10,
+      fontFamily: 'Inter, Helvetica, sans-serif',
+      fill: '#ffffff',
+      align: 'center',
+      width: 16,
+      visible: count > 0,
     };
   }
 
@@ -204,7 +325,6 @@ export class KitchenMapComponent implements AfterViewInit {
     this.selectedZone.set(zoneId);
     this.service.selectZone(zoneId);
 
-    // Update the detail panel
     const panel = this.detailPanel();
     if (panel) {
       panel.setZone(zoneId);
@@ -226,7 +346,8 @@ export class KitchenMapComponent implements AfterViewInit {
       stage.container().style.cursor = 'grab';
     }
     const target = event.event.target as Konva.Rect;
-    if (this.selectedZone() !== (target as any).attrs.zoneId) {
+    const zoneId = (target as any).attrs?.zoneId;
+    if (this.selectedZone() !== zoneId) {
       target.strokeWidth(1);
     }
   }
