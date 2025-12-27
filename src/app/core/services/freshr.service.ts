@@ -1,9 +1,10 @@
 // src/app/core/services/freshr.service.ts
 import { Injectable, computed, signal, inject } from '@angular/core';
 import { ApiService } from './api.service';
-import { Anomaly, Incident, Measurement, ZoneState, Device } from '../models/types';
+import { Anomaly, Incident, Measurement, ZoneState, Device, IncidentAlert } from '../models/types';
 import { interval, switchMap, map, startWith, from } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { MCDONALDS_ECOLI_SCENARIO, Scenario } from '../../scenarios/scenarios.config';
 
 @Injectable({
   providedIn: 'root',
@@ -20,6 +21,7 @@ export class FreshrService {
   } | null>(null);
 
   readonly selectedZone = signal<string | null>(null);
+  readonly activeScenario = signal<Scenario>(MCDONALDS_ECOLI_SCENARIO);
 
   // Data Streams
   private polling$ = interval(2000).pipe(startWith(0));
@@ -63,19 +65,19 @@ export class FreshrService {
     const rawAnomalies = this.anomalies();
     const currentStateMap = this.incidentsMap();
     const meas = this.measurements();
+    const scenario = this.activeScenario();
 
-    return rawAnomalies
+    const baseIncidents = rawAnomalies
       .map((anomaly) => {
         const measurement = meas.find((m) => m.id === anomaly.measurement_id);
-
-        // Skip if no matching measurement found or no zone_id
         if (!measurement || !measurement.zone_id) return null;
 
         const status = currentStateMap.get(anomaly.id) || 'Open';
         const requiredAction = this.getRequiredAction(anomaly, measurement);
         const zone_name = this.getZoneName(measurement.zone_id);
 
-        const incident: Incident = {
+        // TODO: Replace to use richer Incident (not IncidentAlert)
+        const incident: IncidentAlert = {
           anomaly: {
             ...anomaly,
             zone_id: measurement.zone_id,
@@ -91,8 +93,30 @@ export class FreshrService {
 
         return incident;
       })
-      .filter((inc): inc is Incident => inc !== null);
+      .filter((inc): inc is IncidentAlert => inc !== null);
+
+    return this.applyScenarioRules(baseIncidents, scenario);
   });
+
+  private applyScenarioRules(incidents: IncidentAlert[], scenario: Scenario): IncidentAlert[] {
+    return incidents.map((inc) => {
+      const rule = scenario.incidentRules.find((r) =>
+        r.sensorTypes.includes(inc.anomaly.sensor_type),
+      );
+
+      if (rule) {
+        return {
+          ...inc,
+          requiredAction: rule.actions.join(' | '),
+          anomaly: {
+            ...inc.anomaly,
+            severity: rule.severity as 'low' | 'medium' | 'high' | 'critical',
+          },
+        };
+      }
+      return inc;
+    });
+  }
 
   readonly zoneStates = computed(() => {
     const incidents = this.incidents();
@@ -179,7 +203,7 @@ export class FreshrService {
     });
   }
 
-  selectIncident(incident: Incident) {
+  selectIncident(incident: IncidentAlert) {
     this.selectedContext.set({
       type: 'incident',
       data: incident,
