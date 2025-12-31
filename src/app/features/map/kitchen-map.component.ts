@@ -167,7 +167,7 @@ export class KitchenMapComponent implements AfterViewInit {
 
   // Computed: Zone incident counts for badges
   zoneIncidentCounts = computed(() => {
-    const incidents = this.service.incidents();
+    const incidents = this.service.visibleIncidents();
     const counts = new Map<string, number>();
 
     incidents.forEach((inc) => {

@@ -1,4 +1,12 @@
-import { Component, computed, inject, signal, Output, EventEmitter } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  signal,
+  Output,
+  EventEmitter,
+  OnDestroy,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { FreshrService } from '../../core/services/freshr.service';
@@ -15,10 +23,13 @@ interface TabConfig {
 
 interface ReplayEvent {
   timestamp: string;
+  time: number;
   type: 'measurement' | 'anomaly' | 'action';
   label: string;
   value?: string;
   severity?: string;
+  sensorType?: string;
+  zoneId?: string;
 }
 
 @Component({
@@ -26,9 +37,49 @@ interface ReplayEvent {
   standalone: true,
   imports: [CommonModule, MatIconModule],
   templateUrl: './zone-detail-panel.component.html',
-  styles: [``],
+  styles: [
+    `
+      .replay-scrubber::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #3b82f6;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      .replay-scrubber::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #3b82f6;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      .event-highlight {
+        animation: pulse-highlight 0.5s ease-out;
+      }
+      @keyframes pulse-highlight {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+        }
+        50% {
+          transform: scale(1.02);
+          box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+        }
+      }
+    `,
+  ],
 })
-export class ZoneDetailPanelComponent {
+export class ZoneDetailPanelComponent implements OnDestroy {
   service = inject(FreshrService);
   api = inject(ApiService);
 
@@ -38,12 +89,17 @@ export class ZoneDetailPanelComponent {
   // Outputs
   @Output() close = new EventEmitter<void>();
 
-  // State
+  // Local UI state
   activeTab = signal<Tab>('summary');
   aiExplanation = signal<AIExplanation | null>(null);
   aiLoading = signal(false);
   aiError = signal<string | null>(null);
   aiSource = signal<'gemini' | 'fallback'>('fallback');
+
+  // Replay local state (playback control)
+  isPlaying = signal(false);
+  playbackSpeed = signal(1);
+  private playbackInterval: ReturnType<typeof setInterval> | null = null;
 
   tabs: TabConfig[] = [
     { id: 'summary', label: 'Summary', icon: 'info' },
@@ -52,7 +108,14 @@ export class ZoneDetailPanelComponent {
     { id: 'ai', label: 'AI', icon: 'auto_awesome' },
   ];
 
-  // Computed values
+  speedOptions = [0.5, 1, 2, 4];
+
+  // ============ COMPUTED FROM SERVICE ============
+
+  // Replay state comes from service (shared with kitchen map)
+  replayMode = this.service.replayMode;
+  replayTime = this.service.replayTime;
+
   zoneState = computed(() => {
     const id = this.zoneId();
     return id ? this.service.getZoneState(id) : 'normal';
@@ -64,6 +127,7 @@ export class ZoneDetailPanelComponent {
     return this.formatZoneName(id);
   });
 
+  // Use visibleIncidents for zone - respects replay time
   zoneIncidents = computed(() => {
     const id = this.zoneId();
     return id ? this.service.getZoneIncidents(id)() : [];
@@ -83,55 +147,185 @@ export class ZoneDetailPanelComponent {
     return id ? this.service.getZoneRecentMeasurement(id)() : null;
   });
 
-  // Replay events
-  replayEvents = computed((): ReplayEvent[] => {
-    const incidents = this.zoneIncidents();
-    const measurements = this.zoneMeasurements();
+  // ALL events for timeline (not filtered by zone for global view)
+  allReplayEvents = computed((): ReplayEvent[] => {
+    const incidents = this.service.incidents(); // All incidents
     const events: ReplayEvent[] = [];
 
-    // Add anomaly events
     incidents.forEach((inc) => {
+      const time = new Date(inc.anomaly.timestamp).getTime();
       events.push({
         timestamp: inc.anomaly.timestamp,
+        time,
         type: 'anomaly',
-        label: `${this.formatSensorType(inc.anomaly.sensor_type)} anomaly detected`,
+        label: `${this.formatSensorType(inc.anomaly.sensor_type)} - ${inc.zone_name}`,
         severity: inc.anomaly.severity,
+        sensorType: inc.anomaly.sensor_type,
+        zoneId: inc.measurement.zone_id,
       });
     });
 
-    // Add measurement events
-    measurements.slice(0, 5).forEach((m) => {
-      events.push({
-        timestamp: m.timestamp,
-        type: 'measurement',
-        label: `${this.formatMeasurementType(m.measurement_type)} reading`,
-        value: this.formatMeasurementValue(m),
-      });
-    });
-
-    // Sort by timestamp descending
-    return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return events.sort((a, b) => a.time - b.time);
   });
 
-  // Methods
+  // Time range from service
+  replayTimeRange = computed(() => this.service.getReplayTimeRange());
+
+  // Progress percentage for scrubber
+  replayProgress = computed(() => {
+    const time = this.replayTime();
+    const range = this.replayTimeRange();
+    if (time === null || range.duration === 0) return 0;
+    return ((time - range.start) / range.duration) * 100;
+  });
+
+  // Current event index based on replay time
+  currentEventIndex = computed(() => {
+    const time = this.replayTime();
+    const events = this.allReplayEvents();
+    if (time === null || events.length === 0) return -1;
+
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].time <= time) return i;
+    }
+    return -1;
+  });
+
+  // Count of visible incidents at current replay time
+  visibleIncidentCount = computed(() => {
+    return this.service.visibleIncidents().length;
+  });
+
+  ngOnDestroy() {
+    this.stopPlayback();
+  }
+
+  // ============ ZONE SELECTION ============
   setZone(zoneId: string) {
     this.zoneId.set(zoneId);
     this.activeTab.set('summary');
     this.aiExplanation.set(null);
     this.aiError.set(null);
 
-    // Auto-load AI explanation if there are incidents
     const incidents = this.service.getZoneIncidents(zoneId)();
     if (incidents.length > 0) {
       this.loadAIExplanation();
     }
   }
 
+  setTab(tab: Tab) {
+    this.activeTab.set(tab);
+    if (tab === 'replay') {
+      this.initializeReplay();
+    } else {
+      this.stopPlayback();
+    }
+  }
+
+  // ============ REPLAY CONTROLS ============
+  initializeReplay() {
+    if (!this.replayMode()) {
+      this.service.startReplay();
+    }
+  }
+
+  exitReplay() {
+    this.stopPlayback();
+    this.service.stopReplay();
+  }
+
+  togglePlayback() {
+    if (this.isPlaying()) {
+      this.stopPlayback();
+    } else {
+      this.startPlayback();
+    }
+  }
+
+  startPlayback() {
+    const range = this.replayTimeRange();
+    if (range.duration === 0) return;
+
+    // Initialize if needed
+    if (this.replayTime() === null) {
+      this.service.setReplayTime(range.start);
+    }
+
+    this.isPlaying.set(true);
+
+    const realTimePerTick = 50; // ms between updates
+    const simulatedTimePerTick = (range.duration / 200) * this.playbackSpeed();
+
+    this.playbackInterval = setInterval(() => {
+      const current = this.replayTime() ?? range.start;
+      const next = current + simulatedTimePerTick;
+
+      if (next >= range.end) {
+        this.service.setReplayTime(range.end);
+        this.stopPlayback();
+      } else {
+        this.service.setReplayTime(next);
+      }
+    }, realTimePerTick);
+  }
+
+  stopPlayback() {
+    this.isPlaying.set(false);
+    if (this.playbackInterval) {
+      clearInterval(this.playbackInterval);
+      this.playbackInterval = null;
+    }
+  }
+
+  setPlaybackSpeed(speed: number) {
+    this.playbackSpeed.set(speed);
+    if (this.isPlaying()) {
+      this.stopPlayback();
+      this.startPlayback();
+    }
+  }
+
+  onScrub(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const percent = parseFloat(input.value);
+    const range = this.replayTimeRange();
+    const newTime = range.start + (range.duration * percent) / 100;
+    this.service.setReplayTime(newTime);
+  }
+
+  jumpToEvent(index: number) {
+    const events = this.allReplayEvents();
+    if (index >= 0 && index < events.length) {
+      this.service.setReplayTime(events[index].time);
+    }
+  }
+
+  skipToStart() {
+    const range = this.replayTimeRange();
+    this.service.setReplayTime(range.start);
+  }
+
+  skipToEnd() {
+    const range = this.replayTimeRange();
+    this.service.setReplayTime(range.end);
+  }
+
+  isEventActive(event: ReplayEvent): boolean {
+    const current = this.replayTime();
+    if (current === null) return false;
+    return event.time <= current;
+  }
+
+  isEventCurrent(index: number): boolean {
+    return this.currentEventIndex() === index;
+  }
+
+  // ============ AI EXPLANATION ============
   async loadAIExplanation() {
     const incidents = this.zoneIncidents();
     if (incidents.length === 0) return;
 
-    const incident = incidents[0]; // Use first/most severe incident
+    const incident = incidents[0];
     this.aiLoading.set(true);
     this.aiError.set(null);
 
@@ -156,61 +350,71 @@ export class ZoneDetailPanelComponent {
     }
   }
 
+  // ============ FORMATTING ============
   formatZoneName(zoneId: string): string {
-    const nameMap: Record<string, string> = {
-      'zone-recv-1': 'Receiving Area',
-      'zone-cold-1': 'Cold Storage',
-      'zone-prep-1': 'Prep Station',
-      'zone-cook-1': 'Cook Line',
-      'zone-wash-1': 'Wash Station',
-    };
-    return nameMap[zoneId] || zoneId;
+    return this.service.getZoneName(zoneId);
   }
 
   formatSensorType(type: string): string {
-    const typeMap: Record<string, string> = {
-      cold_storage_temperature: 'Cold Storage Temp',
-      handwash_station_usage: 'Handwash Station',
-      ambient_kitchen_temperature: 'Ambient Temp',
-      humidity: 'Humidity',
-      cook_temp: 'Cook Temp',
-      ingredient_flow: 'Ingredient Flow',
-    };
-    return typeMap[type] || type;
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   formatMeasurementType(type: string): string {
-    const typeMap: Record<string, string> = {
+    const map: Record<string, string> = {
       celsius: 'Temperature',
-      event: 'Event',
-      flow_rate: 'Flow Rate',
-      percent: 'Percentage',
+      percent: 'Humidity',
+      count: 'Count',
+      boolean: 'Status',
     };
-    return typeMap[type] || type;
+    return map[type] || type;
   }
 
   formatMeasurementValue(m: Measurement): string {
     if (m.measurement_type === 'celsius') {
-      return `${m.measurement_value.toFixed(1)}°C`;
+      return `${m.measurement_value?.toFixed(1)}°C`;
     }
-    if (m.measurement_type === 'event') {
-      return m.measurement_value === 1 ? 'Compliant' : 'Non-compliant';
+    if (m.measurement_type === 'percent') {
+      return `${m.measurement_value?.toFixed(0)}%`;
     }
-    return m.measurement_value.toString();
+    return m.measurement_value?.toString() ?? 'N/A';
   }
 
   formatTimestamp(ts: string): string {
-    const date = new Date(ts);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
+    return new Date(ts).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
+  formatReplayTime(time: number | null): string {
+    if (time === null) return '--:--:--';
+    return new Date(time).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
 
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
+  getStateColor(state: string): string {
+    const colors: Record<string, string> = {
+      normal: 'bg-green-100 text-green-800 border-green-300',
+      'at-risk': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      unsafe: 'bg-red-100 text-red-800 border-red-300',
+      recovering: 'bg-blue-100 text-blue-800 border-blue-300',
+    };
+    return colors[state] || colors['normal'];
+  }
 
-    return date.toLocaleDateString();
+  getEventZoneColor(zoneId?: string): string {
+    if (!zoneId) return 'bg-slate-500';
+    const colors: Record<string, string> = {
+      'zone-recv-1': 'bg-purple-500',
+      'zone-cold-1': 'bg-blue-500',
+      'zone-prep-1': 'bg-amber-500',
+      'zone-cook-1': 'bg-red-500',
+      'zone-wash-1': 'bg-cyan-500',
+    };
+    return colors[zoneId] || 'bg-slate-500';
   }
 }

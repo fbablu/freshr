@@ -190,7 +190,7 @@ export class IncidentsComponent {
 
   selectIncident(incident: any) {
     this.selectedIncidentId.set(incident.anomaly.id);
-    this.service.selectedContext.set({ type: 'incident', data: incident });
+    this.service.selectedContext.set({ type: 'incident', data: incident, id: incident.anomaly.id });
   }
 
   acknowledgeIncident(event: Event, id: string) {
