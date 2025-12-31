@@ -8,6 +8,7 @@ import { Scenario, SCENARIOS } from '../../scenarios/scenarios.config';
 })
 export class FreshrService {
   private api = inject(ApiService);
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   // Core data
   readonly measurements = signal<Measurement[]>([]);
@@ -29,6 +30,42 @@ export class FreshrService {
   // ============ REPLAY STATE ============
   readonly replayMode = signal(false);
   readonly replayTime = signal<number | null>(null); // Unix timestamp in ms
+
+  constructor() {
+    this.loadData();
+    this.startPolling();
+  }
+
+  ngOnDestroy() {
+    this.stopPolling();
+  }
+
+  // ============ POLLING ============
+  private startPolling() {
+    this.pollingInterval = setInterval(() => {
+      this.loadData();
+    }, 3000);
+  }
+
+  private stopPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+  }
+
+  async loadData() {
+    try {
+      const [measRes, anomRes] = await Promise.all([
+        this.api.getMeasurementsRecent(),
+        this.api.getAnomaliesRecent(),
+      ]);
+      this.measurements.set(measRes.measurements || []);
+      this.anomalies.set(anomRes.anomalies || []);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    }
+  }
 
   // ============ INCIDENTS ============
   readonly incidents = computed(() => {
