@@ -76,6 +76,23 @@ interface ReplayEvent {
           box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
         }
       }
+      @keyframes loading-bar {
+        0% {
+          width: 0%;
+          margin-left: 0;
+        }
+        50% {
+          width: 70%;
+          margin-left: 15%;
+        }
+        100% {
+          width: 0%;
+          margin-left: 100%;
+        }
+      }
+      .animate-loading-bar {
+        animation: loading-bar 2s ease-in-out infinite;
+      }
     `,
   ],
 })
@@ -130,85 +147,100 @@ export class ZoneDetailPanelComponent implements OnDestroy {
   // Use visibleIncidents for zone - respects replay time
   zoneIncidents = computed(() => {
     const id = this.zoneId();
-    return id ? this.service.getZoneIncidents(id)() : [];
-  });
-
-  activeIncidentCount = computed(() => {
-    return this.zoneIncidents().filter((inc) => inc.status !== 'Resolved').length;
+    if (!id) return [];
+    return this.service.visibleIncidents().filter((inc) => inc.anomaly.zone_id === id);
   });
 
   zoneMeasurements = computed(() => {
     const id = this.zoneId();
-    return id ? this.service.getZoneMeasurements(id)() : [];
+    if (!id) return [];
+    return this.service.measurements().filter((m) => m.zone_id === id);
   });
 
   recentMeasurement = computed(() => {
-    const id = this.zoneId();
-    return id ? this.service.getZoneRecentMeasurement(id)() : null;
+    const measurements = this.zoneMeasurements();
+    return measurements.length > 0 ? measurements[0] : null;
   });
 
-  // ALL events for timeline (not filtered by zone for global view)
-  allReplayEvents = computed((): ReplayEvent[] => {
-    const incidents = this.service.incidents(); // All incidents
-    const events: ReplayEvent[] = [];
+  activeIncidentCount = computed(() => this.zoneIncidents().length);
+  visibleIncidentCount = computed(() => this.zoneIncidents().length);
 
-    incidents.forEach((inc) => {
-      const time = new Date(inc.anomaly.timestamp).getTime();
-      events.push({
-        timestamp: inc.anomaly.timestamp,
-        time,
-        type: 'anomaly',
-        label: `${this.formatSensorType(inc.anomaly.sensor_type)} - ${inc.zone_name}`,
-        severity: inc.anomaly.severity,
-        sensorType: inc.anomaly.sensor_type,
-        zoneId: inc.anomaly.zone_id,
-      });
-    });
+  // ============ REPLAY COMPUTED ============
 
-    return events.sort((a, b) => a.time - b.time);
-  });
-
-  // Time range from service
-  replayTimeRange = computed(() => this.service.getReplayTimeRange());
-
-  // Progress percentage for scrubber
-  replayProgress = computed(() => {
-    const time = this.replayTime();
-    const range = this.replayTimeRange();
-    if (time === null || range.duration === 0) return 0;
-    return ((time - range.start) / range.duration) * 100;
-  });
-
-  // Current event index based on replay time
-  currentEventIndex = computed(() => {
-    const time = this.replayTime();
+  replayTimeRange = computed(() => {
     const events = this.allReplayEvents();
-    if (time === null || events.length === 0) return -1;
+    if (events.length === 0) {
+      return { start: 0, end: 0, duration: 0 };
+    }
+    const times = events.map((e) => e.time);
+    const start = Math.min(...times);
+    const end = Math.max(...times);
+    return { start, end, duration: end - start };
+  });
 
+  scrubPercent = computed(() => {
+    const current = this.replayTime();
+    const range = this.replayTimeRange();
+    if (current === null || range.duration === 0) return 0;
+    return ((current - range.start) / range.duration) * 100;
+  });
+
+  currentEventIndex = computed(() => {
+    const current = this.replayTime();
+    if (current === null) return -1;
+    const events = this.allReplayEvents();
     for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].time <= time) return i;
+      if (events[i].time <= current) return i;
     }
     return -1;
   });
 
-  // Count of visible incidents at current replay time
-  visibleIncidentCount = computed(() => {
-    return this.service.visibleIncidents().length;
+  allReplayEvents = computed((): ReplayEvent[] => {
+    const incidents = this.service.incidents();
+    const events: ReplayEvent[] = [];
+
+    incidents.forEach((incident: IncidentAlert) => {
+      const ts = incident.anomaly.timestamp;
+      const time = new Date(ts).getTime();
+
+      events.push({
+        timestamp: ts,
+        time,
+        type: 'anomaly',
+        label: `${this.formatSensorType(incident.anomaly.sensor_type)} anomaly detected`,
+        severity: incident.anomaly.severity,
+        sensorType: incident.anomaly.sensor_type,
+        zoneId: incident.anomaly.zone_id,
+      });
+
+      if (incident.measurement) {
+        events.push({
+          timestamp: ts,
+          time: time - 1000,
+          type: 'measurement',
+          label: `Reading: ${this.formatMeasurementValue(incident.measurement)}`,
+          value: this.formatMeasurementValue(incident.measurement),
+          zoneId: incident.measurement.zone_id,
+        });
+      }
+    });
+
+    return events.sort((a, b) => a.time - b.time);
   });
 
   ngOnDestroy() {
     this.stopPlayback();
   }
 
-  // ============ ZONE SELECTION ============
-  setZone(zoneId: string) {
+  // ============ PUBLIC API ============
+  setZone(zoneId: string | null) {
     this.zoneId.set(zoneId);
-    this.activeTab.set('summary');
+    // Reset AI state when zone changes
     this.aiExplanation.set(null);
     this.aiError.set(null);
-
-    const incidents = this.service.getZoneIncidents(zoneId)();
-    if (incidents.length > 0) {
+    this.aiSource.set('fallback');
+    // If currently on AI tab, load explanation for new zone
+    if (this.activeTab() === 'ai' && zoneId) {
       this.loadAIExplanation();
     }
   }
@@ -219,6 +251,10 @@ export class ZoneDetailPanelComponent implements OnDestroy {
       this.initializeReplay();
     } else {
       this.stopPlayback();
+    }
+    // Trigger AI loading when switching to AI tab
+    if (tab === 'ai' && !this.aiExplanation() && !this.aiLoading() && this.zoneIncidents().length > 0) {
+      this.loadAIExplanation();
     }
   }
 
@@ -323,11 +359,15 @@ export class ZoneDetailPanelComponent implements OnDestroy {
   // ============ AI EXPLANATION ============
   async loadAIExplanation() {
     const incidents = this.zoneIncidents();
-    if (incidents.length === 0) return;
+    if (incidents.length === 0) {
+      this.aiError.set('No incidents in this zone to analyze.');
+      return;
+    }
 
     const incident = incidents[0];
     this.aiLoading.set(true);
     this.aiError.set(null);
+    this.aiExplanation.set(null);
 
     try {
       const response = await this.api.getCopilotExplanation({
@@ -342,9 +382,9 @@ export class ZoneDetailPanelComponent implements OnDestroy {
 
       this.aiExplanation.set(response.explanation);
       this.aiSource.set(response.source);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load AI explanation:', err);
-      this.aiError.set('Failed to generate explanation. Please try again.');
+      this.aiError.set(err?.error?.gemini_error || 'Failed to generate explanation. Please try again.');
     } finally {
       this.aiLoading.set(false);
     }

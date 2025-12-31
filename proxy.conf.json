@@ -1,6 +1,6 @@
 {
   "/api": {
-    "target": "https://dynamap-api-955904730088.us-central1.run.app",
+    "target": "https://freshr-api-955904730088.us-central1.run.app",
     "secure": true,
     "changeOrigin": true,
     "pathRewrite": {

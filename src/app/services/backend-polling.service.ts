@@ -24,7 +24,7 @@ export interface IncidentRule {
 
 @Injectable({ providedIn: 'root' })
 export class BackendPollingService {
-  private baseUrl = 'https://dynamap-api-955904730088.us-central1.run.app';
+  private baseUrl = 'https://freshr-api-955904730088.us-central1.run.app';
 
   measurements = signal<any[]>([]);
   anomalies = signal<any[]>([]);

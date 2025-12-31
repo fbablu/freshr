@@ -81,12 +81,12 @@ def get_gemini_explanation(
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "rich-archery-482201-b6")
     location = os.getenv("VERTEX_REGION", "us-central1")
 
-    print("[COPILOT] Calling Gemini - project={project_id}, location={location}")
+    print(f"[COPILOT] Calling Gemini - project={project_id}, location={location}")
 
     text = ""
     try:
         vertexai.init(project=project_id, location=location)
-        model = GenerativeModel("gemini-2.5-pro")
+        model = GenerativeModel("gemini-2.5-pro")  # Fast model for real-time use
 
         # Build a detailed prompt
         sensor_type = anomaly_data.get("sensor_type", "unknown")
@@ -116,20 +116,25 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 
 Be specific and practical. Reference actual food safety standards."""
 
-        print("[COPILOT] Sending prompt to Gemini...")
+        print(
+            f"[COPILOT] Sending prompt to Gemini (sensor={sensor_type}, zone={zone_id})..."
+        )
         response = model.generate_content(prompt)
 
         if not response:
+            print("[COPILOT] ERROR: Gemini returned no response object")
             return None, "Gemini returned no response object"
 
         if not response.text:
             # Check for blocked content
             if hasattr(response, "prompt_feedback"):
+                print(f"[COPILOT] ERROR: Gemini blocked - {response.prompt_feedback}")
                 return None, f"Gemini blocked: {response.prompt_feedback}"
+            print("[COPILOT] ERROR: Gemini returned empty text")
             return None, "Gemini returned empty text"
 
         text = response.text.strip()
-        print("[COPILOT] Gemini response: {text[:300]}...")
+        print(f"[COPILOT] Gemini raw response ({len(text)} chars): {text[:200]}...")
 
         # Handle markdown code blocks if present
         if text.startswith("```"):
@@ -141,12 +146,14 @@ Be specific and practical. Reference actual food safety standards."""
                 text = text.strip()
 
         result = json.loads(text)
-        print("[COPILOT] Successfully parsed Gemini response")
+        print(f"[COPILOT] SUCCESS: Parsed Gemini response")
         return result, None
 
     except json.JSONDecodeError as e:
+        print(f"[COPILOT] ERROR: JSON parse failed - {e}")
         return None, f"JSON parse error: {e}. Raw: {text[:200]}"
     except Exception as e:
+        print(f"[COPILOT] ERROR: {type(e).__name__}: {e}")
         return None, f"{type(e).__name__}: {e}"
 
 
@@ -177,6 +184,10 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
         zone_id = data.get("zone_id")
         severity = data.get("severity", "medium")
 
+        print(
+            f"[COPILOT] /explain called - anomaly={anomaly_id}, sensor={sensor_type}, use_fallback={use_fallback}"
+        )
+
         anomaly_data = {
             "id": anomaly_id,
             "sensor_type": sensor_type,
@@ -194,6 +205,7 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
         explanation, error = get_gemini_explanation(anomaly_data, measurement_data)
 
         if explanation:
+            print(f"[COPILOT] Returning Gemini response for {anomaly_id}")
             return jsonify(
                 {
                     "explanation": explanation,
@@ -202,8 +214,11 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
                 }
             )
 
+        print(f"[COPILOT] Gemini failed: {error}")
+
         # Gemini failed - return error or fallback
         if use_fallback:
+            print(f"[COPILOT] Using fallback for {anomaly_id}")
             fallback_key = (
                 sensor_type if sensor_type in FALLBACK_EXPLANATIONS else "default"
             )
@@ -226,6 +241,7 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
             )
 
         # No fallback - return error
+        print(f"[COPILOT] Returning 500 error for {anomaly_id}")
         return (
             jsonify(
                 {

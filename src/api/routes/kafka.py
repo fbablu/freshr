@@ -101,9 +101,9 @@ SCENARIO_METRICS = {
             },
         ],
         "pipeline": {
-            "producer": {"status": "running", "service": "dynamap-producer"},
-            "consumer": {"status": "running", "service": "dynamap-consumer"},
-            "processor": {"status": "running", "service": "dynamap-processing"},
+            "producer": {"status": "running", "service": "freshr-producer"},
+            "consumer": {"status": "running", "service": "freshr-consumer"},
+            "processor": {"status": "running", "service": "freshr-processing"},
         },
     },
     "drift": {
@@ -189,9 +189,9 @@ SCENARIO_METRICS = {
             },
         ],
         "pipeline": {
-            "producer": {"status": "running", "service": "dynamap-producer"},
-            "consumer": {"status": "running", "service": "dynamap-consumer"},
-            "processor": {"status": "running", "service": "dynamap-processing"},
+            "producer": {"status": "running", "service": "freshr-producer"},
+            "consumer": {"status": "running", "service": "freshr-consumer"},
+            "processor": {"status": "running", "service": "freshr-processing"},
         },
     },
     "hygiene": {
@@ -277,9 +277,9 @@ SCENARIO_METRICS = {
             },
         ],
         "pipeline": {
-            "producer": {"status": "running", "service": "dynamap-producer"},
-            "consumer": {"status": "running", "service": "dynamap-consumer"},
-            "processor": {"status": "running", "service": "dynamap-processing"},
+            "producer": {"status": "running", "service": "freshr-producer"},
+            "consumer": {"status": "running", "service": "freshr-consumer"},
+            "processor": {"status": "running", "service": "freshr-processing"},
         },
     },
     "recovery": {
@@ -365,9 +365,9 @@ SCENARIO_METRICS = {
             },
         ],
         "pipeline": {
-            "producer": {"status": "running", "service": "dynamap-producer"},
-            "consumer": {"status": "running", "service": "dynamap-consumer"},
-            "processor": {"status": "running", "service": "dynamap-processing"},
+            "producer": {"status": "running", "service": "freshr-producer"},
+            "consumer": {"status": "running", "service": "freshr-consumer"},
+            "processor": {"status": "running", "service": "freshr-processing"},
         },
     },
     "normal": {
@@ -453,9 +453,9 @@ SCENARIO_METRICS = {
             },
         ],
         "pipeline": {
-            "producer": {"status": "running", "service": "dynamap-producer"},
-            "consumer": {"status": "running", "service": "dynamap-consumer"},
-            "processor": {"status": "running", "service": "dynamap-processing"},
+            "producer": {"status": "running", "service": "freshr-producer"},
+            "consumer": {"status": "running", "service": "freshr-consumer"},
+            "processor": {"status": "running", "service": "freshr-processing"},
         },
     },
 }
@@ -698,15 +698,15 @@ def register(app, db, measurements_collection: str):
                 "pipeline": {
                     "producer": {
                         "status": "running" if messages_per_second > 0 else "idle",
-                        "service": "dynamap-producer",
+                        "service": "freshr-producer",
                     },
                     "consumer": {
                         "status": "running" if messages_per_second > 0 else "idle",
-                        "service": "dynamap-consumer",
+                        "service": "freshr-consumer",
                     },
                     "processor": {
                         "status": "running" if messages_per_second > 0 else "idle",
-                        "service": "dynamap-processing",
+                        "service": "freshr-processing",
                     },
                 },
                 "timestamp": now.isoformat() + "Z",
@@ -730,7 +730,7 @@ def register(app, db, measurements_collection: str):
                         "id": "producer",
                         "name": "Kafka Producer",
                         "type": "producer",
-                        "service": "dynamap-producer",
+                        "service": "freshr-producer",
                         "status": "running",
                         "outputs": KAFKA_TOPICS[:7],
                     },
@@ -738,7 +738,7 @@ def register(app, db, measurements_collection: str):
                         "id": "consumer",
                         "name": "Kafka Consumer",
                         "type": "consumer",
-                        "service": "dynamap-consumer",
+                        "service": "freshr-consumer",
                         "status": "running",
                         "inputs": KAFKA_TOPICS[:7],
                         "outputs": ["sensor-events-processed", "Firestore"],
@@ -747,7 +747,7 @@ def register(app, db, measurements_collection: str):
                         "id": "processor",
                         "name": "Anomaly Processor",
                         "type": "processor",
-                        "service": "dynamap-processing",
+                        "service": "freshr-processing",
                         "status": "running",
                         "inputs": ["sensor-events-processed"],
                         "outputs": ["anomalies collection"],
@@ -756,7 +756,7 @@ def register(app, db, measurements_collection: str):
                         "id": "api",
                         "name": "Freshr API",
                         "type": "api",
-                        "service": "dynamap-api",
+                        "service": "freshr-api",
                         "status": "running",
                         "inputs": ["Firestore"],
                     },
