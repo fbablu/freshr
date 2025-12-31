@@ -146,7 +146,7 @@ Be specific and practical. Reference actual food safety standards."""
                 text = text.strip()
 
         result = json.loads(text)
-        print(f"[COPILOT] SUCCESS: Parsed Gemini response")
+        print("[COPILOT] SUCCESS: Parsed Gemini response")
         return result, None
 
     except json.JSONDecodeError as e:
