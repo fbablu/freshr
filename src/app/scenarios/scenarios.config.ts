@@ -20,9 +20,9 @@ export interface Scenario {
 }
 
 export const MCDONALDS_ECOLI_SCENARIO: Scenario = {
-  id: 'mcdonalds-ecoli-2024',
-  title: "E. coli Outbreak - McDonald's Onions (Oct 2024)",
-  description: '104 cases, 34 hospitalizations, 1 death across 14 states',
+  id: 'ecoli',
+  title: "McDonald's E. coli Outbreak",
+  description: 'Oct 2024 - Multi-zone contamination scenario',
   dateRange: {
     start: '2025-12-25T00:00:00Z',
     end: '2025-12-25T23:59:59Z',
@@ -55,4 +55,78 @@ export const MCDONALDS_ECOLI_SCENARIO: Scenario = {
   ],
 };
 
-export const SCENARIOS = [MCDONALDS_ECOLI_SCENARIO];
+export const TEMPERATURE_DRIFT_SCENARIO: Scenario = {
+  id: 'drift',
+  title: 'Temperature Drift',
+  description: 'Cold storage failure simulation',
+  dateRange: {
+    start: '2025-12-25T00:00:00Z',
+    end: '2025-12-25T23:59:59Z',
+  },
+  focusSensors: ['cs-1', 'cs-2', 'cs-3'],
+  incidentRules: [
+    {
+      type: 'temperature_drift',
+      sensorTypes: ['cold_storage_temperature'],
+      threshold: { positive: 3, consecutive: 3 },
+      zones: ['storage'],
+      severity: 'critical',
+      title: 'Cold Storage Temperature Rising',
+      actions: ['CHECK REFRIGERATION UNIT', 'VERIFY DOOR SEALS', 'MOVE PERISHABLES'],
+    },
+  ],
+};
+
+export const HYGIENE_FAILURE_SCENARIO: Scenario = {
+  id: 'hygiene',
+  title: 'Hygiene Failure',
+  description: 'Handwash compliance drops',
+  dateRange: {
+    start: '2025-12-25T00:00:00Z',
+    end: '2025-12-25T23:59:59Z',
+  },
+  focusSensors: ['hw-1', 'hw-2'],
+  incidentRules: [
+    {
+      type: 'hygiene_failure',
+      sensorTypes: ['handwash_station_usage'],
+      threshold: { negative: 2 },
+      zones: ['prep', 'wash'],
+      severity: 'warning',
+      title: 'Handwash Compliance Drop',
+      actions: ['REMIND STAFF', 'CHECK SOAP/TOWEL SUPPLY', 'RETRAIN IF NEEDED'],
+    },
+  ],
+};
+
+export const RECOVERY_SCENARIO: Scenario = {
+  id: 'recovery',
+  title: 'Recovery Mode',
+  description: 'System recovering from incident',
+  dateRange: {
+    start: '2025-12-25T00:00:00Z',
+    end: '2025-12-25T23:59:59Z',
+  },
+  focusSensors: ['cs-1', 'hw-1'],
+  incidentRules: [],
+};
+
+export const NORMAL_SCENARIO: Scenario = {
+  id: 'normal',
+  title: 'Normal Operations',
+  description: 'Healthy baseline state',
+  dateRange: {
+    start: '2025-12-25T00:00:00Z',
+    end: '2025-12-25T23:59:59Z',
+  },
+  focusSensors: [],
+  incidentRules: [],
+};
+
+export const SCENARIOS: Scenario[] = [
+  MCDONALDS_ECOLI_SCENARIO,
+  TEMPERATURE_DRIFT_SCENARIO,
+  HYGIENE_FAILURE_SCENARIO,
+  RECOVERY_SCENARIO,
+  NORMAL_SCENARIO,
+];

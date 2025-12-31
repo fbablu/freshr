@@ -7,18 +7,23 @@ import {
   viewChild,
   AfterViewInit,
   HostListener,
+  ElementRef,
+  OnInit,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { MatIconModule } from '@angular/material/icon';
 import { FreshrService } from '../../core/services/freshr.service';
 import { StageComponent, CoreShapeComponent, NgKonvaEventObject } from 'ng2-konva';
 import { ZoneDetailPanelComponent } from '../../shared/components/zone-detail-panel.component';
 import { SocialSignalsComponent } from '../../shared/components/social-signals.component';
-import { DemoControlsComponent } from '../../shared/components/demo-controls.component';
+import { AccordionPanelComponent } from '../../shared/components/accordion-panel.component';
 import { ZONE_DISPLAY_NAMES } from '../../config/sensor-zone-mapping';
 import { ZoneState } from '../../core/models/types';
 import Konva from 'konva';
 import { KafkaMetricsComponent } from '../../shared/components/kafka-metrics.component';
+import gsap from 'gsap';
 
 interface Zone {
   id: string;
@@ -69,7 +74,6 @@ interface BadgeTextConfig {
   fill: string;
   align: string;
   width: number;
-  visible: boolean;
 }
 
 interface Bounds {
@@ -81,30 +85,38 @@ interface Bounds {
   height: number;
 }
 
+type PanelType = 'kafka' | 'social' | null;
+
 @Component({
   selector: 'app-kitchen-map',
   standalone: true,
   imports: [
     CommonModule,
     LucideAngularModule,
+    MatIconModule,
     StageComponent,
     CoreShapeComponent,
     ZoneDetailPanelComponent,
     SocialSignalsComponent,
-    DemoControlsComponent,
     KafkaMetricsComponent,
+    AccordionPanelComponent,
   ],
   templateUrl: './kitchen-map.component.html',
   styleUrls: ['./kitchen-map.component.css'],
 })
-export class KitchenMapComponent implements AfterViewInit {
+export class KitchenMapComponent implements OnInit, AfterViewInit {
   service = inject(FreshrService);
 
   stage = viewChild<StageComponent>('stage');
   detailPanel = viewChild<ZoneDetailPanelComponent>('detailPanel');
+  zonePanel = viewChild<ElementRef<HTMLDivElement>>('zonePanel');
+  incidentBadge = viewChild<ElementRef<HTMLDivElement>>('incidentBadge');
 
   selectedZone = signal<string | null>(null);
   zoomLevel = signal(100);
+  expandedPanel = signal<PanelType>('kafka');
+
+  private previousIncidentCount = 0;
 
   // Configuration
   private readonly PADDING_FACTOR = 0.1;
@@ -118,7 +130,6 @@ export class KitchenMapComponent implements AfterViewInit {
     draggable: true,
   };
 
-  // Zones with IDs matching backend + proper display names
   zones: Zone[] = [
     {
       id: 'zone-recv-1',
@@ -162,16 +173,14 @@ export class KitchenMapComponent implements AfterViewInit {
     },
   ];
 
-  // Computed: Total active incidents count
+  // Computed
   totalActiveIncidents = computed(() => {
     return this.service.incidents().filter((inc) => inc.status !== 'Resolved').length;
   });
 
-  // Computed: Zone incident counts for badges
   zoneIncidentCounts = computed(() => {
     const incidents = this.service.visibleIncidents();
     const counts = new Map<string, number>();
-
     incidents.forEach((inc) => {
       if (inc.status === 'Resolved') return;
       const zoneId = inc.measurement?.zone_id;
@@ -179,21 +188,149 @@ export class KitchenMapComponent implements AfterViewInit {
         counts.set(zoneId, (counts.get(zoneId) || 0) + 1);
       }
     });
-
     return counts;
   });
 
-  // Computed: Active scenario info
   activeScenarioTitle = computed(() => this.service.activeScenario().title);
+
+  constructor() {
+    // Watch for incident count changes to trigger animations
+    effect(() => {
+      const currentCount = this.totalActiveIncidents();
+      if (currentCount > this.previousIncidentCount) {
+        this.animateNewIncident();
+      }
+      this.previousIncidentCount = currentCount;
+    });
+  }
+
+  ngOnInit() {
+    // Initial stagger animation will run after view init
+  }
 
   ngAfterViewInit() {
     this.fitStageToContainer();
+    this.runEntranceAnimations();
   }
 
   @HostListener('window:resize')
   onResize() {
     this.fitStageToContainer();
   }
+
+  // ============ GSAP ANIMATIONS ============
+
+  private runEntranceAnimations() {
+    // Stagger in the three columns
+    const columns = document.querySelectorAll('.h-full.flex.gap-4 > div');
+
+    gsap.fromTo(
+      columns,
+      {
+        opacity: 0,
+        y: 30,
+        scale: 0.95,
+      },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.6,
+        stagger: 0.15,
+        ease: 'power3.out',
+      },
+    );
+
+    // Animate the legend and zoom indicator
+    gsap.fromTo(
+      '.absolute.bottom-4',
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.5, delay: 0.8, stagger: 0.1, ease: 'power2.out' },
+    );
+  }
+
+  private animateNewIncident() {
+    const badge = this.incidentBadge()?.nativeElement;
+    if (!badge) return;
+
+    // Attention-grabbing shake + glow
+    gsap
+      .timeline()
+      .to(badge, {
+        scale: 1.2,
+        duration: 0.15,
+        ease: 'power2.out',
+      })
+      .to(badge, {
+        x: -5,
+        duration: 0.05,
+        repeat: 5,
+        yoyo: true,
+        ease: 'power1.inOut',
+      })
+      .to(badge, {
+        scale: 1,
+        x: 0,
+        duration: 0.2,
+        ease: 'elastic.out(1, 0.5)',
+      })
+      .to(
+        badge,
+        {
+          boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)',
+          duration: 0.3,
+          yoyo: true,
+          repeat: 1,
+        },
+        '-=0.3',
+      );
+  }
+
+  animateZoneSelection(zoneId: string) {
+    const panel = this.zonePanel()?.nativeElement;
+    if (!panel) return;
+
+    // Highlight effect on zone panel
+    gsap
+      .timeline()
+      .to(panel, {
+        borderColor: '#3b82f6',
+        boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.2)',
+        duration: 0.2,
+        ease: 'power2.out',
+      })
+      .to(panel, {
+        borderColor: 'rgba(226, 232, 240, 0.8)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        duration: 0.4,
+        delay: 0.5,
+        ease: 'power2.inOut',
+      });
+
+    // Pulse the content inside
+    const content = panel.querySelector('.overflow-y-auto');
+    if (content) {
+      gsap.fromTo(content, { opacity: 0.5 }, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+    }
+  }
+
+  // ============ ACCORDION PANEL MANAGEMENT ============
+
+  setExpandedPanel(panel: PanelType, expanded: boolean) {
+    if (expanded) {
+      this.expandedPanel.set(panel);
+    } else if (this.expandedPanel() === panel) {
+      this.expandedPanel.set(null);
+    }
+  }
+
+  getZoneSubtitle(): string {
+    const zone = this.selectedZone();
+    if (!zone) return 'Select a zone to view details';
+    return ZONE_DISPLAY_NAMES[zone] || zone;
+  }
+
+  // ============ ZONE BOUNDS & STAGE FITTING ============
 
   private getZoneBounds(): Bounds {
     const minX = Math.min(...this.zones.map((z) => z.x));
@@ -215,136 +352,190 @@ export class KitchenMapComponent implements AfterViewInit {
     const stage = this.stage()?.getStage();
     if (!stage) return;
 
-    const container = stage.container().parentElement;
-    if (!container) return;
-
+    const container = stage.container();
     const containerWidth = container.offsetWidth;
     const containerHeight = container.offsetHeight;
 
-    stage.width(containerWidth);
-    stage.height(containerHeight);
+    if (containerWidth === 0 || containerHeight === 0) return;
 
     const bounds = this.getZoneBounds();
+    const paddingX = bounds.width * this.PADDING_FACTOR;
+    const paddingY = bounds.height * this.PADDING_FACTOR;
 
-    // Calculate scale to fit zones with padding
-    const scaleX = (containerWidth * (1 - this.PADDING_FACTOR * 2)) / bounds.width;
-    const scaleY = (containerHeight * (1 - this.PADDING_FACTOR * 2)) / bounds.height;
-    const scale = Math.min(scaleX, scaleY, this.MAX_ZOOM);
+    const contentWidth = bounds.width + paddingX * 2;
+    const contentHeight = bounds.height + paddingY * 2;
 
-    // Center the zones
-    const offsetX = (containerWidth - bounds.width * scale) / 2 - bounds.minX * scale;
-    const offsetY = (containerHeight - bounds.height * scale) / 2 - bounds.minY * scale;
+    const scaleX = containerWidth / contentWidth;
+    const scaleY = containerHeight / contentHeight;
+    const scale = Math.min(scaleX, scaleY);
 
+    const offsetX = (containerWidth - contentWidth * scale) / 2 - (bounds.minX - paddingX) * scale;
+    const offsetY =
+      (containerHeight - contentHeight * scale) / 2 - (bounds.minY - paddingY) * scale;
+
+    this.configStage = {
+      ...this.configStage,
+      width: containerWidth,
+      height: containerHeight,
+    };
+
+    stage.width(containerWidth);
+    stage.height(containerHeight);
     stage.scale({ x: scale, y: scale });
     stage.position({ x: offsetX, y: offsetY });
+    stage.batchDraw();
+
     this.zoomLevel.set(Math.round(scale * 100));
   }
 
-  // Zone styling based on state
-  getZoneConfig(zone: Zone): ZoneConfig {
-    const state = this.service.getZoneState(zone.id);
-    const isSelected = this.selectedZone() === zone.id;
+  resetView() {
+    const stage = this.stage()?.getStage();
+    if (stage) {
+      // Animate reset
+      gsap.to(stage.container(), {
+        opacity: 0.5,
+        duration: 0.15,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => this.fitStageToContainer(),
+      });
+    }
+  }
 
+  // ============ ZONE CONFIGURATION ============
+
+  getZoneState(zoneId: string): ZoneState {
+    return this.service.getZoneState(zoneId);
+  }
+
+  private getZoneColors(state: ZoneState): { fill: string; stroke: string } {
     const colors: Record<ZoneState, { fill: string; stroke: string }> = {
-      normal: { fill: '#f0fdf4', stroke: '#22c55e' },
-      'at-risk': { fill: '#fefce8', stroke: '#eab308' },
-      unsafe: { fill: '#fef2f2', stroke: '#ef4444' },
-      recovering: { fill: '#eff6ff', stroke: '#3b82f6' },
+      normal: { fill: 'rgba(34, 197, 94, 0.15)', stroke: '#22c55e' },
+      'at-risk': { fill: 'rgba(234, 179, 8, 0.2)', stroke: '#eab308' },
+      unsafe: { fill: 'rgba(239, 68, 68, 0.2)', stroke: '#ef4444' },
+      recovering: { fill: 'rgba(59, 130, 246, 0.15)', stroke: '#3b82f6' },
     };
+    return colors[state] || colors.normal;
+  }
 
-    const { fill, stroke } = colors[state] || colors.normal;
+  getZoneConfig(zone: Zone): ZoneConfig {
+    const state = this.getZoneState(zone.id);
+    const colors = this.getZoneColors(state);
+    const isSelected = this.selectedZone() === zone.id;
 
     return {
       x: zone.x,
       y: zone.y,
       width: zone.width,
       height: zone.height,
-      fill,
-      stroke,
-      strokeWidth: isSelected ? 2 : 1,
-      cornerRadius: 4,
+      fill: colors.fill,
+      stroke: colors.stroke,
+      strokeWidth: isSelected ? 3 : 2,
+      cornerRadius: 6,
       zoneId: zone.id,
     };
   }
 
-  // Zone label
   getTextConfig(zone: Zone): TextConfig {
+    const state = this.getZoneState(zone.id);
+    const textColors: Record<ZoneState, string> = {
+      normal: '#166534',
+      'at-risk': '#854d0e',
+      unsafe: '#991b1b',
+      recovering: '#1e40af',
+    };
+
     return {
       x: zone.x + 8,
       y: zone.y + 8,
       text: zone.name,
       fontSize: 11,
-      fontFamily: 'Inter, Helvetica, sans-serif',
-      fill: '#334155',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fill: textColors[state] || '#374151',
       align: 'left',
       width: zone.width - 16,
     };
   }
 
-  // Badge circle for incident count
   getBadgeConfig(zone: Zone): BadgeConfig {
     const count = this.zoneIncidentCounts().get(zone.id) || 0;
     return {
-      x: zone.x + zone.width - 10,
-      y: zone.y + 10,
-      radius: 8,
-      fill: count > 0 ? '#ef4444' : 'transparent',
+      x: zone.x + zone.width - 12,
+      y: zone.y + 12,
+      radius: 10,
+      fill: '#ef4444',
       visible: count > 0,
     };
   }
 
-  // Badge text (number)
   getBadgeTextConfig(zone: Zone): BadgeTextConfig {
     const count = this.zoneIncidentCounts().get(zone.id) || 0;
     return {
-      x: zone.x + zone.width - 18,
-      y: zone.y + 5,
+      x: zone.x + zone.width - 22,
+      y: zone.y + 6,
       text: count.toString(),
       fontSize: 10,
-      fontFamily: 'Inter, Helvetica, sans-serif',
+      fontFamily: 'Inter, system-ui, sans-serif',
       fill: '#ffffff',
       align: 'center',
-      width: 16,
-      visible: count > 0,
+      width: 20,
     };
+  }
+
+  // ============ EVENT HANDLERS ============
+
+  trackZone(index: number, zone: Zone): string {
+    return zone.id;
   }
 
   handleZoneClick(event: NgKonvaEventObject<MouseEvent>, zoneId: string) {
     this.selectedZone.set(zoneId);
-    this.service.selectZone(zoneId);
-
-    const panel = this.detailPanel();
-    if (panel) {
-      panel.setZone(zoneId);
-    }
+    this.detailPanel()?.setZone(zoneId);
+    this.animateZoneSelection(zoneId);
   }
 
   handleZoneMouseEnter(event: NgKonvaEventObject<MouseEvent>) {
-    const stage = this.stage()?.getStage();
-    if (stage) {
-      stage.container().style.cursor = 'pointer';
+    const shape = event.event?.target as Konva.Shape;
+    if (shape) {
+      // GSAP hover effect
+      gsap.to(shape, {
+        opacity: 0.85,
+        scaleX: 1.02,
+        scaleY: 1.02,
+        duration: 0.2,
+        ease: 'power2.out',
+      });
+
+      const stage = shape.getStage();
+      if (stage) {
+        stage.container().style.cursor = 'pointer';
+      }
     }
-    const target = event.event.target as Konva.Rect;
-    target.strokeWidth(2);
   }
 
   handleZoneMouseLeave(event: NgKonvaEventObject<MouseEvent>) {
-    const stage = this.stage()?.getStage();
-    if (stage) {
-      stage.container().style.cursor = 'grab';
-    }
-    const target = event.event.target as Konva.Rect;
-    const zoneId = (target as any).attrs?.zoneId;
-    if (this.selectedZone() !== zoneId) {
-      target.strokeWidth(1);
+    const shape = event.event?.target as Konva.Shape;
+    if (shape) {
+      gsap.to(shape, {
+        opacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 0.2,
+        ease: 'power2.out',
+      });
+
+      const stage = shape.getStage();
+      if (stage) {
+        stage.container().style.cursor = 'default';
+      }
     }
   }
 
   handleWheel(event: NgKonvaEventObject<WheelEvent>) {
-    event.event.evt.preventDefault();
-
     const stage = this.stage()?.getStage();
     if (!stage) return;
+
+    event.event?.evt.preventDefault();
 
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
@@ -355,19 +546,22 @@ export class KitchenMapComponent implements AfterViewInit {
       y: (pointer.y - stage.y()) / oldScale,
     };
 
-    const direction = event.event.evt.deltaY > 0 ? -1 : 1;
-    const newScale = direction > 0 ? oldScale * this.ZOOM_STEP : oldScale / this.ZOOM_STEP;
-    const clampedScale = Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, newScale));
+    const direction = event.event!.evt.deltaY > 0 ? -1 : 1;
+    const newScale =
+      direction > 0
+        ? Math.min(oldScale * this.ZOOM_STEP, this.MAX_ZOOM)
+        : Math.max(oldScale / this.ZOOM_STEP, this.MIN_ZOOM);
 
-    stage.scale({ x: clampedScale, y: clampedScale });
+    stage.scale({ x: newScale, y: newScale });
 
     const newPos = {
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
     };
-
     stage.position(newPos);
-    this.zoomLevel.set(Math.round(clampedScale * 100));
+    stage.batchDraw();
+
+    this.zoomLevel.set(Math.round(newScale * 100));
   }
 
   handleDragStart(event: NgKonvaEventObject<MouseEvent>) {
@@ -380,20 +574,11 @@ export class KitchenMapComponent implements AfterViewInit {
   handleDragEnd(event: NgKonvaEventObject<MouseEvent>) {
     const stage = this.stage()?.getStage();
     if (stage) {
-      stage.container().style.cursor = 'grab';
+      stage.container().style.cursor = 'default';
     }
-  }
-
-  resetView() {
-    this.fitStageToContainer();
-  }
-
-  trackZone(index: number, zone: Zone): string {
-    return zone.id;
   }
 
   handleClosePanel() {
     this.selectedZone.set(null);
-    this.service.clearSelection();
   }
 }
