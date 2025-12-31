@@ -1,8 +1,10 @@
 # Freshr
 
-Real-time food safety monitoring demo using live sensor streams.
+Food safety, powered by data in motion.
 
-The backend streams physical and operational kitchen signals through Kafka, detects anomalies, and stores results in Firestore. The frontend visualizes system status, risks, and anomalies.
+Freshr uses real-time streaming sensor data and AI to detect food safety risks in kitchen before they reach guests.
+
+Freshr is a real-time food safety monitoring system that detects kitchen risks before they reach guests. Using streaming sensor data powered by Confluent and AI-assisted anomaly detection on Google Cloud, Freshr transforms live kitchen telemetry into actionable safety insights. The system demonstrates how AI on data in motion can enable proactive intervention, improve compliance, and reduce the risk of foodborne incidents in commercial kitchens.
 
 ---
 
