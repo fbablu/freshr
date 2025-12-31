@@ -1,0 +1,109 @@
+<div class="fixed bottom-4 left-4 z-50" [class.w-80]="expanded()" [class.w-auto]="!expanded()">
+  <!-- Collapsed Button -->
+  <button
+    *ngIf="!expanded()"
+    (click)="expanded.set(true)"
+    class="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
+  >
+    <mat-icon class="!text-[18px] !w-[18px] !h-[18px]">science</mat-icon>
+    <span class="text-sm font-medium">Demo Controls</span>
+  </button>
+
+  <!-- Expanded Panel -->
+  <div
+    *ngIf="expanded()"
+    class="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden"
+  >
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
+      <div class="flex items-center gap-2">
+        <mat-icon class="!text-[18px] !w-[18px] !h-[18px]">science</mat-icon>
+        <span class="font-semibold">Demo Controls</span>
+      </div>
+      <button
+        (click)="expanded.set(false)"
+        class="p-1 hover:bg-slate-700 rounded transition-colors"
+      >
+        <mat-icon class="!text-[18px] !w-[18px] !h-[18px]">close</mat-icon>
+      </button>
+    </div>
+
+    <!-- Content -->
+    <div class="p-4 space-y-4">
+      <!-- Scenario Selection -->
+      <div>
+        <label class="text-xs font-medium text-slate-600 uppercase tracking-wide">
+          Select Scenario
+        </label>
+        <div class="mt-2 space-y-2">
+          <button
+            *ngFor="let scenario of scenarios()"
+            (click)="runScenario(scenario.id)"
+            [disabled]="loading()"
+            class="w-full text-left px-3 py-2 rounded-lg border transition-colors"
+            [ngClass]="{
+              'border-blue-500 bg-blue-50': activeScenario() === scenario.id,
+              'border-slate-200 hover:border-slate-300 hover:bg-slate-50':
+                activeScenario() !== scenario.id,
+              'opacity-50 cursor-not-allowed': loading(),
+            }"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-slate-900">{{ scenario.name }}</span>
+              <mat-icon
+                *ngIf="activeScenario() === scenario.id"
+                class="!text-[16px] !w-4 !h-4 text-blue-600"
+                >check_circle</mat-icon
+              >
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">{{ scenario.description }}</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="pt-2 border-t border-slate-200">
+        <label class="text-xs font-medium text-slate-600 uppercase tracking-wide">
+          Quick Actions
+        </label>
+        <div class="mt-2 flex gap-2">
+          <button
+            (click)="clearData()"
+            [disabled]="loading()"
+            class="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+          >
+            <mat-icon class="!text-[16px] !w-4 !h-4">delete_sweep</mat-icon>
+            Clear
+          </button>
+          <button
+            (click)="refresh()"
+            [disabled]="loading()"
+            class="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+          >
+            <mat-icon class="!text-[16px] !w-4 !h-4">refresh</mat-icon>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div *ngIf="statusMessage()" class="text-center">
+        <span
+          class="text-xs"
+          [ngClass]="{
+            'text-green-600': statusType() === 'success',
+            'text-red-600': statusType() === 'error',
+            'text-blue-600': statusType() === 'loading',
+          }"
+        >
+          {{ statusMessage() }}
+        </span>
+      </div>
+
+      <!-- Confluent Badge -->
+      <div class="pt-2 border-t border-slate-200 text-center">
+        <span class="text-xs text-slate-400"> Powered by Confluent Kafka + Google Cloud </span>
+      </div>
+    </div>
+  </div>
+</div>

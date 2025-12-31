@@ -84,8 +84,19 @@
     </div>
   </div>
 
-  <!-- Right Panel - Zone Details -->
-  <div class="w-96 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-    <app-zone-detail-panel #detailPanel (close)="handleClosePanel()"></app-zone-detail-panel>
+  <!-- Right Panels -->
+  <div class="w-96 flex flex-col gap-4">
+    <!-- Zone Details Panel -->
+    <div class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+      <app-zone-detail-panel #detailPanel (close)="handleClosePanel()"></app-zone-detail-panel>
+    </div>
+
+    <!-- Social Signals Panel -->
+    <div class="h-80">
+      <app-social-signals></app-social-signals>
+    </div>
   </div>
 </div>
+
+<!-- Demo Controls (floating) -->
+<app-demo-controls></app-demo-controls>

@@ -13,6 +13,8 @@ import { LucideAngularModule } from 'lucide-angular';
 import { FreshrService } from '../../core/services/freshr.service';
 import { StageComponent, CoreShapeComponent, NgKonvaEventObject } from 'ng2-konva';
 import { ZoneDetailPanelComponent } from '../../shared/components/zone-detail-panel.component';
+import { SocialSignalsComponent } from '../../shared/components/social-signals.component';
+import { DemoControlsComponent } from '../../shared/components/demo-controls.component';
 import { ZONE_DISPLAY_NAMES } from '../../config/sensor-zone-mapping';
 import { ZoneState } from '../../core/models/types';
 import Konva from 'konva';
@@ -87,6 +89,8 @@ interface Bounds {
     StageComponent,
     CoreShapeComponent,
     ZoneDetailPanelComponent,
+    SocialSignalsComponent,
+    DemoControlsComponent,
   ],
   templateUrl: './kitchen-map.component.html',
   styleUrls: ['./kitchen-map.component.css'],
@@ -220,80 +224,62 @@ export class KitchenMapComponent implements AfterViewInit {
 
     const bounds = this.getZoneBounds();
 
-    const scaleX = containerWidth / (bounds.width * (1 + this.PADDING_FACTOR * 2));
-    const scaleY = containerHeight / (bounds.height * (1 + this.PADDING_FACTOR * 2));
-    const scale = Math.min(scaleX, scaleY);
+    // Calculate scale to fit zones with padding
+    const scaleX = (containerWidth * (1 - this.PADDING_FACTOR * 2)) / bounds.width;
+    const scaleY = (containerHeight * (1 - this.PADDING_FACTOR * 2)) / bounds.height;
+    const scale = Math.min(scaleX, scaleY, this.MAX_ZOOM);
 
-    stage.scale({ x: scale, y: scale });
-
+    // Center the zones
     const offsetX = (containerWidth - bounds.width * scale) / 2 - bounds.minX * scale;
     const offsetY = (containerHeight - bounds.height * scale) / 2 - bounds.minY * scale;
-    stage.position({ x: offsetX, y: offsetY });
 
+    stage.scale({ x: scale, y: scale });
+    stage.position({ x: offsetX, y: offsetY });
     this.zoomLevel.set(Math.round(scale * 100));
   }
 
-  getZoneState(zoneId: string): ZoneState {
-    return this.service.getZoneState(zoneId);
-  }
-
+  // Zone styling based on state
   getZoneConfig(zone: Zone): ZoneConfig {
-    const zoneState = this.getZoneState(zone.id);
+    const state = this.service.getZoneState(zone.id);
     const isSelected = this.selectedZone() === zone.id;
 
-    let fillColor: string;
-    let strokeColor: string;
+    const colors: Record<ZoneState, { fill: string; stroke: string }> = {
+      normal: { fill: '#f0fdf4', stroke: '#22c55e' },
+      'at-risk': { fill: '#fefce8', stroke: '#eab308' },
+      unsafe: { fill: '#fef2f2', stroke: '#ef4444' },
+      recovering: { fill: '#eff6ff', stroke: '#3b82f6' },
+    };
 
-    switch (zoneState) {
-      case 'unsafe':
-        fillColor = '#fef2f2'; // red-50
-        strokeColor = '#ef4444'; // red-500
-        break;
-      case 'at-risk':
-        fillColor = '#fefce8'; // yellow-50
-        strokeColor = '#eab308'; // yellow-500
-        break;
-      case 'recovering':
-        fillColor = '#eff6ff'; // blue-50
-        strokeColor = '#3b82f6'; // blue-500
-        break;
-      default:
-        fillColor = '#f0fdf4'; // green-50
-        strokeColor = '#10b981'; // green-500
-    }
-
-    if (isSelected) {
-      fillColor = '#dbeafe'; // blue-100
-      strokeColor = '#2563eb'; // blue-600
-    }
+    const { fill, stroke } = colors[state] || colors.normal;
 
     return {
       x: zone.x,
       y: zone.y,
       width: zone.width,
       height: zone.height,
-      fill: fillColor,
-      stroke: strokeColor,
+      fill,
+      stroke,
       strokeWidth: isSelected ? 2 : 1,
       cornerRadius: 4,
       zoneId: zone.id,
     };
   }
 
+  // Zone label
   getTextConfig(zone: Zone): TextConfig {
     return {
-      x: zone.x,
-      y: zone.y + zone.height / 2 - 6,
+      x: zone.x + 8,
+      y: zone.y + 8,
       text: zone.name,
-      fontSize: 12,
+      fontSize: 11,
       fontFamily: 'Inter, Helvetica, sans-serif',
-      fill: '#1e293b', // slate-800
-      align: 'center',
-      width: zone.width,
+      fill: '#334155',
+      align: 'left',
+      width: zone.width - 16,
     };
   }
 
-  // Badge for incident count (circle)
+  // Badge circle for incident count
   getBadgeConfig(zone: Zone): BadgeConfig {
     const count = this.zoneIncidentCounts().get(zone.id) || 0;
     return {

@@ -1,0 +1,216 @@
+<div class="h-full flex flex-col bg-white rounded-lg shadow-sm border border-slate-200">
+  <!-- Header -->
+  <div class="px-4 py-3 border-b border-slate-200">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <mat-icon class="!text-[20px] !w-5 !h-5 text-blue-600">public</mat-icon>
+        <h3 class="font-semibold text-slate-900">Social Signals</h3>
+      </div>
+      <div class="flex items-center gap-1">
+        <button
+          *ngFor="let mode of viewModes"
+          (click)="viewMode.set(mode.id)"
+          class="px-2 py-1 text-xs rounded transition-colors"
+          [ngClass]="{
+            'bg-blue-100 text-blue-700': viewMode() === mode.id,
+            'text-slate-600 hover:bg-slate-100': viewMode() !== mode.id,
+          }"
+        >
+          {{ mode.label }}
+        </button>
+      </div>
+    </div>
+    <p class="text-xs text-slate-500 mt-1">
+      Real-time monitoring of Twitter & Yelp for food safety mentions
+    </p>
+  </div>
+
+  <!-- Content -->
+  <div class="flex-1 overflow-y-auto p-4">
+    <!-- Loading -->
+    <div *ngIf="loading()" class="text-center py-8">
+      <mat-icon class="!text-[32px] !w-8 !h-8 mx-auto mb-2 text-blue-500 animate-pulse"
+        >sync</mat-icon
+      >
+      <p class="text-sm text-slate-600">Loading social signals...</p>
+    </div>
+
+    <!-- Signals View -->
+    <div *ngIf="!loading() && viewMode() === 'signals'" class="space-y-3">
+      <div
+        *ngFor="let signal of signals()"
+        class="p-3 rounded-lg border"
+        [ngClass]="{
+          'bg-red-50 border-red-200': signal.severity === 'outbreak',
+          'bg-orange-50 border-orange-200': signal.severity === 'confirmed',
+          'bg-yellow-50 border-yellow-200': signal.severity === 'escalating',
+          'bg-slate-50 border-slate-200': signal.severity === 'early_signal',
+        }"
+      >
+        <!-- Platform badge -->
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span
+              class="px-2 py-0.5 text-xs font-medium rounded"
+              [ngClass]="{
+                'bg-blue-100 text-blue-700': signal.platform === 'twitter',
+                'bg-red-100 text-red-700': signal.platform === 'yelp',
+              }"
+            >
+              {{ signal.platform === 'twitter' ? '𝕏 Twitter' : '★ Yelp' }}
+            </span>
+            <span class="text-xs text-slate-500">{{ signal.relative_time }}</span>
+          </div>
+          <span
+            class="text-xs font-medium px-1.5 py-0.5 rounded"
+            [ngClass]="{
+              'bg-red-200 text-red-800': signal.severity === 'outbreak',
+              'bg-orange-200 text-orange-800': signal.severity === 'confirmed',
+              'bg-yellow-200 text-yellow-800': signal.severity === 'escalating',
+              'bg-slate-200 text-slate-700': signal.severity === 'early_signal',
+            }"
+          >
+            {{ formatSeverity(signal.severity) }}
+          </span>
+        </div>
+
+        <!-- Author -->
+        <div class="text-xs font-medium text-slate-700 mb-1">
+          {{ signal.author }}
+          <span *ngIf="signal.rating" class="ml-1"> ({{ signal.rating }}/5 ★) </span>
+        </div>
+
+        <!-- Content -->
+        <p class="text-sm text-slate-900">{{ signal.content }}</p>
+
+        <!-- Keywords -->
+        <div class="flex flex-wrap gap-1 mt-2">
+          <span
+            *ngFor="let keyword of signal.keywords"
+            class="px-1.5 py-0.5 text-xs bg-slate-200 text-slate-600 rounded"
+          >
+            {{ keyword }}
+          </span>
+        </div>
+      </div>
+
+      <div *ngIf="signals().length === 0" class="text-center py-8 text-slate-500">
+        <mat-icon class="!text-[32px] !w-8 !h-8 mx-auto mb-2">speaker_notes_off</mat-icon>
+        <p class="text-sm">No social signals detected</p>
+      </div>
+    </div>
+
+    <!-- Timeline View -->
+    <div *ngIf="!loading() && viewMode() === 'timeline'" class="space-y-3">
+      <div class="relative">
+        <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+
+        <div *ngFor="let event of timeline()" class="relative pl-10 pb-4">
+          <div
+            class="absolute left-2.5 w-3 h-3 rounded-full border-2 border-white"
+            [ngClass]="{
+              'bg-red-500': event.type === 'anomaly',
+              'bg-blue-500': event.type === 'social',
+            }"
+          ></div>
+          <div
+            class="rounded-lg p-3"
+            [ngClass]="{
+              'bg-red-50': event.type === 'anomaly',
+              'bg-blue-50': event.type === 'social',
+            }"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-500">
+                {{ event.source }}
+              </span>
+              <span
+                class="text-xs px-1.5 py-0.5 rounded"
+                [ngClass]="{
+                  'bg-red-200 text-red-700':
+                    event.severity === 'critical' || event.severity === 'outbreak',
+                  'bg-orange-200 text-orange-700':
+                    event.severity === 'high' || event.severity === 'confirmed',
+                  'bg-yellow-200 text-yellow-700': event.severity === 'medium',
+                }"
+              >
+                {{ event.severity }}
+              </span>
+            </div>
+            <p class="text-sm text-slate-900 mt-1">{{ event.content }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="timeline().length === 0" class="text-center py-8 text-slate-500">
+        <mat-icon class="!text-[32px] !w-8 !h-8 mx-auto mb-2">timeline</mat-icon>
+        <p class="text-sm">No timeline events</p>
+      </div>
+    </div>
+
+    <!-- Insight View -->
+    <div *ngIf="!loading() && viewMode() === 'insight'" class="space-y-4">
+      <div *ngIf="correlation()?.correlation" class="space-y-4">
+        <!-- Key Insight -->
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex items-start gap-3">
+            <mat-icon class="!text-[24px] !w-6 !h-6 text-blue-600 mt-0.5">lightbulb</mat-icon>
+            <div>
+              <h4 class="font-semibold text-blue-900 mb-1">Key Insight</h4>
+              <p class="text-sm text-blue-800">
+                {{ correlation()?.insight }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 bg-green-50 rounded-lg">
+            <div class="text-xs text-green-600 font-medium">FRESHR DETECTION</div>
+            <div class="text-lg font-bold text-green-900">
+              {{ correlation()?.correlation?.anomaly_detection_time }}
+            </div>
+          </div>
+          <div class="p-3 bg-orange-50 rounded-lg">
+            <div class="text-xs text-orange-600 font-medium">SOCIAL SIGNAL</div>
+            <div class="text-lg font-bold text-orange-900">
+              {{ correlation()?.correlation?.first_social_signal }}
+            </div>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg col-span-2">
+            <div class="text-xs text-blue-600 font-medium">EARLY WARNING ADVANTAGE</div>
+            <div class="text-lg font-bold text-blue-900">
+              {{ correlation()?.correlation?.freshr_advantage }}
+            </div>
+          </div>
+          <div class="p-3 bg-purple-50 rounded-lg col-span-2">
+            <div class="text-xs text-purple-600 font-medium">POTENTIAL IMPACT</div>
+            <div class="text-lg font-bold text-purple-900">
+              {{ correlation()?.correlation?.potential_cases_prevented }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="!correlation()?.correlation" class="text-center py-8 text-slate-500">
+        <mat-icon class="!text-[32px] !w-8 !h-8 mx-auto mb-2">analytics</mat-icon>
+        <p class="text-sm">{{ correlation()?.message || 'Run E. coli scenario for insights' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="px-4 py-2 border-t border-slate-200 bg-slate-50">
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-slate-500"> Simulated data for demo purposes </span>
+      <button
+        (click)="refresh()"
+        class="text-xs text-blue-600 hover:underline flex items-center gap-1"
+      >
+        <mat-icon class="!text-[14px] !w-3.5 !h-3.5">refresh</mat-icon>
+        Refresh
+      </button>
+    </div>
+  </div>
+</div>

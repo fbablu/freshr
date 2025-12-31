@@ -1,7 +1,6 @@
 export const environment = {
   production: true,
   apiUrl: 'https://dynamap-api-955904730088.us-central1.run.app',
-  useMockApi: false,
 };
 
 // FB

@@ -4,7 +4,7 @@ from flask import Flask
 from flask_cors import CORS
 from google.cloud import firestore
 
-from src.api.routes import anomalies, devices, measurements, seed
+from src.api.routes import anomalies, devices, measurements, seed, copilot, social
 
 DEVICE_COLLECTION = os.getenv("DEVICE_COLLECTION", "device_measurements")
 ANOMALIES_COLLECTION = os.getenv("ANOMALIES_COLLECTION", "anomalies")
@@ -21,15 +21,45 @@ def create_app():
             "http://localhost:4201",
             "https://freshr-482201-b6.web.app",
             "https://freshr-482201-b6.firebaseapp.com",
+            "https://rich-archery-482201-b6.web.app",  # ADD THIS
+            "https://rich-archery-482201-b6.firebaseapp.com",  # ADD THIS
         ],
     )
 
     db = firestore.Client()
 
+    # Register routes
     measurements.register(app, db, DEVICE_COLLECTION)
     anomalies.register(app, db, ANOMALIES_COLLECTION, DEVICE_COLLECTION, firestore)
     devices.register(app, db, DEVICE_COLLECTION)
     seed.register(app, db, DEVICE_COLLECTION, ANOMALIES_COLLECTION)
+    copilot.register(app, db, ANOMALIES_COLLECTION, DEVICE_COLLECTION)
+    social.register(app)
+
+    # Health check
+    @app.route("/healthz", methods=["GET"])
+    def health():
+        return "ok"
+
+    # Root endpoint
+    @app.route("/", methods=["GET"])
+    def root():
+        return {
+            "service": "Freshr API",
+            "version": "1.0.0",
+            "endpoints": [
+                "/measurements/recent",
+                "/anomalies/recent",
+                "/devices",
+                "/seed?scenario=ecoli|drift|hygiene|recovery|normal",
+                "/scenarios",
+                "/copilot/explain",
+                "/social/signals?scenario=ecoli",
+                "/social/timeline?scenario=ecoli",
+                "/social/correlation?scenario=ecoli",
+            ],
+        }
+
     return app
 
 
