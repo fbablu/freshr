@@ -161,7 +161,7 @@ export class ZoneDetailPanelComponent implements OnDestroy {
         label: `${this.formatSensorType(inc.anomaly.sensor_type)} - ${inc.zone_name}`,
         severity: inc.anomaly.severity,
         sensorType: inc.anomaly.sensor_type,
-        zoneId: inc.measurement.zone_id,
+        zoneId: inc.anomaly.zone_id,
       });
     });
 
@@ -333,9 +333,9 @@ export class ZoneDetailPanelComponent implements OnDestroy {
       const response = await this.api.getCopilotExplanation({
         anomaly_id: incident.anomaly.id,
         sensor_type: incident.anomaly.sensor_type,
-        measurement_value: incident.measurement.measurement_value,
-        measurement_type: incident.measurement.measurement_type,
-        zone_id: incident.measurement.zone_id,
+        measurement_value: incident.measurement?.measurement_value ?? 0,
+        measurement_type: incident.measurement?.measurement_type ?? '',
+        zone_id: incident.anomaly.zone_id,
         severity: incident.anomaly.severity,
         timestamp: incident.anomaly.timestamp,
       });

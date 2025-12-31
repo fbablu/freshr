@@ -40,24 +40,25 @@ export class FreshrService {
     const baseIncidents = rawAnomalies
       .map((anomaly) => {
         const measurement = meas.find((m) => m.id === anomaly.measurement_id);
-        if (!measurement || !measurement.zone_id) return null;
+        const zoneId = anomaly.zone_id || measurement?.zone_id;
+        if (!zoneId) return null;
 
         const status = currentStateMap.get(anomaly.id) || 'Open';
         const requiredAction = this.getRequiredAction(anomaly, measurement);
-        const zone_name = this.getZoneName(measurement.zone_id);
+        const zone_name = this.getZoneName(zoneId);
 
         const incident: IncidentAlert = {
           anomaly: {
             ...anomaly,
-            zone_id: measurement.zone_id,
-            store_id: measurement.store_id,
-            sensor_id: measurement.sensor_id,
-            severity: this.calculateSeverity(anomaly, measurement),
+            zone_id: zoneId,
+            store_id: anomaly.store_id || measurement?.store_id || '',
+            sensor_id: anomaly.sensor_id || measurement?.sensor_id || '',
+            severity: anomaly.severity || this.calculateSeverity(anomaly, measurement),
           },
-          measurement,
+          measurement: measurement || null,
           status,
-          requiredAction,
-          zone_name,
+          requiredAction: this.getRequiredAction(anomaly, measurement),
+          zone_name: this.getZoneName(zoneId),
         };
 
         return incident;
@@ -95,7 +96,7 @@ export class FreshrService {
     incidents.forEach((inc) => {
       if (inc.status === 'Resolved') return;
 
-      const zoneId = inc.measurement.zone_id;
+      const zoneId = inc.anomaly.zone_id;
       if (!zoneId) return;
 
       const current = stateMap.get(zoneId);
@@ -164,7 +165,7 @@ export class FreshrService {
   getZoneIncidents(zoneId: string) {
     return computed(() => {
       // Use visibleIncidents for replay-aware filtering
-      return this.visibleIncidents().filter((inc) => inc.measurement.zone_id === zoneId);
+      return this.visibleIncidents().filter((inc) => inc.anomaly.zone_id === zoneId);
     });
   }
 
@@ -246,7 +247,7 @@ export class FreshrService {
     });
   }
 
-  private getRequiredAction(anomaly: Anomaly, measurement: Measurement): string {
+  private getRequiredAction(anomaly: Anomaly, measurement?: Measurement): string {
     if (anomaly.sensor_type === 'cold_storage_temperature') {
       return 'HOLD + VERIFY TEMP';
     }
@@ -281,11 +282,11 @@ export class FreshrService {
 
   private calculateSeverity(
     anomaly: Anomaly,
-    measurement: Measurement,
+    measurement?: Measurement,
   ): 'low' | 'medium' | 'high' | 'critical' {
     if (anomaly.severity) return anomaly.severity;
 
-    if (anomaly.sensor_type === 'cold_storage_temperature' && measurement.measurement_value) {
+    if (anomaly.sensor_type === 'cold_storage_temperature' && measurement?.measurement_value) {
       if (measurement.measurement_value > 12) return 'critical';
       if (measurement.measurement_value > 8) return 'high';
       if (measurement.measurement_value > 5) return 'medium';

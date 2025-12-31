@@ -103,7 +103,7 @@ export interface DevicesResponse {
 
 export interface IncidentAlert {
   anomaly: Anomaly;
-  measurement: Measurement;
+  measurement: Measurement | null;
   status: IncidentStatus;
   requiredAction: string;
   zone_name: string;
