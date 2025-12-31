@@ -16,9 +16,11 @@ export class DemoControlsComponent {
 
   expanded = signal(false);
   loading = signal(false);
-  activeScenario = signal<string | null>(null);
   statusMessage = signal<string | null>(null);
   statusType = signal<'success' | 'error' | 'loading'>('success');
+
+  // Use FreshrService as source of truth for active scenario
+  activeScenario = this.freshrService.demoScenarioId;
 
   scenarios = signal<ScenarioInfo[]>([
     {
@@ -55,18 +57,24 @@ export class DemoControlsComponent {
 
     try {
       const result = await this.api.seedScenario(scenarioId, true);
-      this.activeScenario.set(scenarioId);
+
+      // Update FreshrService with the new scenario ID
+      this.freshrService.setDemoScenarioId(scenarioId);
+
+      // Refresh data to pick up new seeded data
+      await this.freshrService.loadData();
+
       this.statusMessage.set(
         `✓ Created ${result.created.measurements} measurements, ${result.created.anomalies} anomalies`,
       );
       this.statusType.set('success');
 
-      // Clear status after delay
       setTimeout(() => this.statusMessage.set(null), 3000);
     } catch (err) {
-      console.error('Failed to seed scenario:', err);
-      this.statusMessage.set('Failed to load scenario');
+      console.error('Failed to run scenario:', err);
+      this.statusMessage.set('✗ Failed to load scenario');
       this.statusType.set('error');
+      setTimeout(() => this.statusMessage.set(null), 3000);
     } finally {
       this.loading.set(false);
     }
@@ -74,28 +82,33 @@ export class DemoControlsComponent {
 
   async clearData() {
     this.loading.set(true);
-    this.statusMessage.set('Clearing data...');
-    this.statusType.set('loading');
-
     try {
       await this.api.clearData();
-      this.activeScenario.set(null);
+      this.freshrService.setDemoScenarioId('normal');
+      await this.freshrService.loadData();
       this.statusMessage.set('✓ Data cleared');
       this.statusType.set('success');
-      setTimeout(() => this.statusMessage.set(null), 2000);
+      setTimeout(() => this.statusMessage.set(null), 3000);
     } catch (err) {
       console.error('Failed to clear data:', err);
-      this.statusMessage.set('Failed to clear data');
+      this.statusMessage.set('✗ Failed to clear data');
       this.statusType.set('error');
     } finally {
       this.loading.set(false);
     }
   }
 
-  refresh() {
-    // Force refresh by triggering the polling
-    this.statusMessage.set('✓ Refreshing...');
-    this.statusType.set('success');
-    setTimeout(() => this.statusMessage.set(null), 1000);
+  async refresh() {
+    this.loading.set(true);
+    try {
+      await this.freshrService.loadData();
+      this.statusMessage.set('✓ Data refreshed');
+      this.statusType.set('success');
+      setTimeout(() => this.statusMessage.set(null), 2000);
+    } catch (err) {
+      console.error('Failed to refresh data:', err);
+    } finally {
+      this.loading.set(false);
+    }
   }
 }

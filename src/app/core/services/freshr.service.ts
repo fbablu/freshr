@@ -15,9 +15,14 @@ export class FreshrService {
   readonly anomalies = signal<Anomaly[]>([]);
   readonly incidentsMap = signal<Map<string, 'Open' | 'Resolved'>>(new Map());
 
-  // Scenario
+  // Scenario - full scenario object for incident rules
   private _activeScenario = signal<Scenario>(SCENARIOS[0]);
   readonly activeScenario = this._activeScenario.asReadonly();
+
+  // Demo scenario ID - for API calls (Kafka, social, etc.)
+  // Maps to backend scenarios: 'ecoli' | 'drift' | 'hygiene' | 'recovery' | 'normal'
+  private _demoScenarioId = signal<string>('ecoli');
+  readonly demoScenarioId = this._demoScenarioId.asReadonly();
 
   // Selection state
   readonly selectedZone = signal<string | null>(null);
@@ -58,7 +63,7 @@ export class FreshrService {
     try {
       const [measRes, anomRes] = await Promise.all([
         this.api.getMeasurementsRecent(),
-        this.api.getAnomaliesRecent(),
+        this.api.getAnomaliesRecent({ limit: 50 }),
       ]);
       this.measurements.set(measRes.measurements || []);
       this.anomalies.set(anomRes.anomalies || []);
@@ -67,34 +72,29 @@ export class FreshrService {
     }
   }
 
-  // ============ INCIDENTS ============
+  // ============ DERIVED: INCIDENTS ============
   readonly incidents = computed(() => {
-    const rawAnomalies = this.anomalies();
-    const currentStateMap = this.incidentsMap();
-    const meas = this.measurements();
+    const anomalies = this.anomalies();
+    const measurements = this.measurements();
+    const incMap = this.incidentsMap();
     const scenario = this.activeScenario();
 
-    const baseIncidents = rawAnomalies
+    const baseIncidents: IncidentAlert[] = anomalies
       .map((anomaly) => {
-        const measurement = meas.find((m) => m.id === anomaly.measurement_id);
-        const zoneId = anomaly.zone_id || measurement?.zone_id;
-        if (!zoneId) return null;
-
-        const status = currentStateMap.get(anomaly.id) || 'Open';
-        const requiredAction = this.getRequiredAction(anomaly, measurement);
-        const zone_name = this.getZoneName(zoneId);
+        const measurement = measurements.find((m) => m.id === anomaly.measurement_id) || null;
+        const zoneId = anomaly.zone_id || measurement?.zone_id || 'unknown';
+        const existingStatus = incMap.get(anomaly.id);
+        const status = existingStatus || 'Open';
 
         const incident: IncidentAlert = {
           anomaly: {
             ...anomaly,
             zone_id: zoneId,
-            store_id: anomaly.store_id || measurement?.store_id || '',
-            sensor_id: anomaly.sensor_id || measurement?.sensor_id || '',
-            severity: anomaly.severity || this.calculateSeverity(anomaly, measurement),
+            severity: this.calculateSeverity(anomaly, measurement ?? undefined),
           },
-          measurement: measurement || null,
+          measurement,
           status,
-          requiredAction: this.getRequiredAction(anomaly, measurement),
+          requiredAction: this.getRequiredAction(anomaly, measurement ?? undefined),
           zone_name: this.getZoneName(zoneId),
         };
 
@@ -106,18 +106,15 @@ export class FreshrService {
   });
 
   // ============ TIME-FILTERED INCIDENTS ============
-  // These are the incidents visible at current replay time
   readonly visibleIncidents = computed(() => {
     const allIncidents = this.incidents();
     const isReplay = this.replayMode();
     const time = this.replayTime();
 
     if (!isReplay || time === null) {
-      // Not in replay mode - show all incidents
       return allIncidents;
     }
 
-    // Filter to only incidents that occurred at or before replay time
     return allIncidents.filter((inc) => {
       const incidentTime = new Date(inc.anomaly.timestamp).getTime();
       return incidentTime <= time;
@@ -126,7 +123,6 @@ export class FreshrService {
 
   // ============ ZONE STATES (REPLAY-AWARE) ============
   readonly zoneStates = computed(() => {
-    // Use visibleIncidents which respects replay time
     const incidents = this.visibleIncidents();
     const stateMap = new Map<string, ZoneState>();
 
@@ -145,7 +141,6 @@ export class FreshrService {
             ? 'at-risk'
             : 'normal';
 
-      // Keep worst state
       if (!current || this.isWorseState(newState, current)) {
         stateMap.set(zoneId, newState);
       }
@@ -154,10 +149,30 @@ export class FreshrService {
     return stateMap;
   });
 
+  readonly latestMeasurementByZone = computed(() => {
+    const measurements = this.measurements();
+    const byZone = new Map<string, Measurement>();
+
+    measurements.forEach((m) => {
+      const zoneId = m.zone_id;
+      if (!zoneId) return;
+      const existing = byZone.get(zoneId);
+      if (!existing || new Date(m.timestamp) > new Date(existing.timestamp)) {
+        byZone.set(zoneId, m);
+      }
+    });
+
+    return byZone;
+  });
+
+  readonly latestMeasurement = computed(() => {
+    const meas = this.measurements();
+    return meas.length > 0 ? meas[0] : null;
+  });
+
   // ============ REPLAY METHODS ============
   startReplay() {
     this.replayMode.set(true);
-    // Initialize to earliest incident time minus buffer
     const incidents = this.incidents();
     if (incidents.length > 0) {
       const times = incidents.map((i) => new Date(i.anomaly.timestamp).getTime());
@@ -194,14 +209,13 @@ export class FreshrService {
     };
   }
 
-  // ============ ZONE HELPERS ============
+  // ============ ZONE HELPERS (PUBLIC) ============
   getZoneState(zoneId: string): ZoneState {
     return this.zoneStates().get(zoneId) || 'normal';
   }
 
   getZoneIncidents(zoneId: string) {
     return computed(() => {
-      // Use visibleIncidents for replay-aware filtering
       return this.visibleIncidents().filter((inc) => inc.anomaly.zone_id === zoneId);
     });
   }
@@ -213,7 +227,6 @@ export class FreshrService {
 
       let meas = this.measurements().filter((m) => m.zone_id === zoneId);
 
-      // Filter by replay time if active
       if (isReplay && time !== null) {
         meas = meas.filter((m) => new Date(m.timestamp).getTime() <= time);
       }
@@ -229,9 +242,30 @@ export class FreshrService {
     });
   }
 
+  getZoneName(zoneId: string): string {
+    const zoneNames: Record<string, string> = {
+      receiving: 'Receiving',
+      'zone-recv-1': 'Receiving',
+      storage: 'Cold Storage',
+      'zone-cold-1': 'Cold Storage',
+      prep: 'Prep Area',
+      'zone-prep-1': 'Prep Area',
+      cook: 'Cook Line',
+      'zone-cook-1': 'Cook Line',
+      washing: 'Wash Station',
+      'zone-wash-1': 'Wash Station',
+      assembly: 'Assembly',
+    };
+    return zoneNames[zoneId] || zoneId;
+  }
+
   // ============ SCENARIO & DATA ============
   setScenario(scenario: Scenario) {
     this._activeScenario.set(scenario);
+  }
+
+  setDemoScenarioId(scenarioId: string) {
+    this._demoScenarioId.set(scenarioId);
   }
 
   setMeasurements(data: Measurement[]) {
@@ -249,8 +283,30 @@ export class FreshrService {
   }
 
   acknowledgeIncident(anomalyId: string) {
-    // For now, acknowledgement doesn't change status - could add 'Acknowledged' state if needed
     console.log('Incident acknowledged:', anomalyId);
+  }
+
+  // ============ SELECTION METHODS ============
+  selectZone(zoneId: string) {
+    this.selectedZone.set(zoneId);
+    this.selectedContext.set({
+      type: 'zone',
+      data: { zone_id: zoneId },
+      id: zoneId,
+    });
+  }
+
+  selectIncident(incident: IncidentAlert) {
+    this.selectedContext.set({
+      type: 'incident',
+      data: incident,
+      id: incident.anomaly.id,
+    });
+  }
+
+  clearSelection() {
+    this.selectedZone.set(null);
+    this.selectedContext.set(null);
   }
 
   // ============ PRIVATE HELPERS ============
@@ -294,29 +350,6 @@ export class FreshrService {
     return 'INVESTIGATE';
   }
 
-  // ============ SELECTION METHODS ============
-  selectZone(zoneId: string) {
-    this.selectedZone.set(zoneId);
-    this.selectedContext.set({
-      type: 'zone',
-      data: { zone_id: zoneId },
-      id: zoneId,
-    });
-  }
-
-  selectIncident(incident: IncidentAlert) {
-    this.selectedContext.set({
-      type: 'incident',
-      data: incident,
-      id: incident.anomaly.id,
-    });
-  }
-
-  clearSelection() {
-    this.selectedZone.set(null);
-    this.selectedContext.set(null);
-  }
-
   private calculateSeverity(
     anomaly: Anomaly,
     measurement?: Measurement,
@@ -329,16 +362,5 @@ export class FreshrService {
       if (measurement.measurement_value > 5) return 'medium';
     }
     return anomaly.score && anomaly.score > 0.9 ? 'high' : 'medium';
-  }
-
-  getZoneName(zoneId: string): string {
-    const names: Record<string, string> = {
-      'zone-recv-1': 'Receiving',
-      'zone-cold-1': 'Cold Storage',
-      'zone-prep-1': 'Prep Station',
-      'zone-cook-1': 'Cook Line',
-      'zone-wash-1': 'Washing',
-    };
-    return names[zoneId] || zoneId;
   }
 }

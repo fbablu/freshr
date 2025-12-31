@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, firstValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AnomaliesAggregateResponse,
@@ -14,7 +14,8 @@ import {
   DevicesResponse,
 } from '../models/types';
 
-// New types for copilot and social endpoints
+// ============ COPILOT TYPES ============
+
 export interface AIExplanation {
   what_happened: string;
   why_it_matters: string;
@@ -26,7 +27,11 @@ export interface CopilotExplainResponse {
   explanation: AIExplanation;
   source: 'gemini' | 'fallback';
   anomaly_id?: string;
+  anomaly?: any;
+  measurement?: any;
 }
+
+// ============ SOCIAL TYPES ============
 
 export interface SocialSignal {
   id: string;
@@ -70,7 +75,10 @@ export interface CorrelationResponse {
   } | null;
   insight?: string;
   message?: string;
+  scenario?: string;
 }
+
+// ============ SCENARIO TYPES ============
 
 export interface ScenarioInfo {
   id: string;
@@ -156,7 +164,8 @@ export class ApiService {
   private http = inject(HttpClient);
   private baseUrl = environment.apiUrl;
 
-  // Measurements endpoints
+  // ============ MEASUREMENTS ============
+
   getMeasurementsRecent(): Promise<MeasurementsRecentResponse> {
     return firstValueFrom(
       this.http.get<MeasurementsRecentResponse>(`${this.baseUrl}/measurements/recent`),
@@ -197,6 +206,7 @@ export class ApiService {
   getMeasurementsValues(params: {
     limit?: number;
     sensor_id?: string;
+    sensor_type?: string;
   }): Promise<MeasurementsValuesResponse> {
     const httpParams = this.buildHttpParams(params);
     return firstValueFrom(
@@ -206,23 +216,31 @@ export class ApiService {
     );
   }
 
-  // Anomalies endpoints
-  getAnomaliesRecent(): Promise<AnomaliesRecentResponse> {
-    return firstValueFrom(
-      this.http.get<AnomaliesRecentResponse>(`${this.baseUrl}/anomalies/recent`),
-    );
-  }
+  // ============ ANOMALIES ============
 
-  getAnomaliesAggregate(params?: any): Promise<AnomaliesAggregateResponse> {
+  getAnomaliesRecent(params?: { limit?: number }): Promise<AnomaliesRecentResponse> {
     const httpParams = this.buildHttpParams(params);
     return firstValueFrom(
-      this.http.get<AnomaliesAggregateResponse>(`${this.baseUrl}/anomalies/aggregate`, {
+      this.http.get<AnomaliesRecentResponse>(`${this.baseUrl}/anomalies/recent`, {
         params: httpParams,
       }),
     );
   }
 
-  getAnomaliesBySensor(params: { sensor_id?: string }): Promise<AnomaliesBySensorResponse> {
+  getAnomaliesCount(params?: {
+    start?: string;
+    end?: string;
+    severity?: string;
+  }): Promise<AnomaliesAggregateResponse> {
+    const httpParams = this.buildHttpParams(params);
+    return firstValueFrom(
+      this.http.get<AnomaliesAggregateResponse>(`${this.baseUrl}/anomalies/count`, {
+        params: httpParams,
+      }),
+    );
+  }
+
+  getAnomaliesBySensor(params: { sensor_id: string }): Promise<AnomaliesBySensorResponse> {
     const httpParams = this.buildHttpParams(params);
     return firstValueFrom(
       this.http.get<AnomaliesBySensorResponse>(`${this.baseUrl}/anomalies/by_sensor`, {
@@ -231,31 +249,23 @@ export class ApiService {
     );
   }
 
-  getAnomaliesTimeSeries(params?: any): Promise<TimeSeriesResponse> {
-    const httpParams = this.buildHttpParams(params);
-    return firstValueFrom(
-      this.http.get<TimeSeriesResponse>(`${this.baseUrl}/anomalies/time_series`, {
-        params: httpParams,
-      }),
-    );
-  }
+  // ============ DEVICES ============
 
-  // Devices endpoint
   getDevices(): Promise<DevicesResponse> {
     return firstValueFrom(this.http.get<DevicesResponse>(`${this.baseUrl}/devices`));
   }
 
-  // ============ NEW ENDPOINTS ============
+  // ============ COPILOT ============
 
-  // Copilot / AI Explanation
   getCopilotExplanation(data: {
-    anomaly_id?: string;
+    sensor_id?: string;
     sensor_type: string;
     measurement_value?: number;
     measurement_type?: string;
     zone_id?: string;
     severity?: string;
     timestamp?: string;
+    anomaly_id?: string;
   }): Promise<CopilotExplainResponse> {
     return firstValueFrom(
       this.http.post<CopilotExplainResponse>(`${this.baseUrl}/copilot/explain`, data),
@@ -268,7 +278,8 @@ export class ApiService {
     );
   }
 
-  // Social Signals
+  // ============ SOCIAL SIGNALS ============
+
   getSocialSignals(scenario: string = 'ecoli', limit: number = 10): Promise<SocialSignalsResponse> {
     const params = this.buildHttpParams({ scenario, limit });
     return firstValueFrom(
@@ -290,7 +301,8 @@ export class ApiService {
     );
   }
 
-  // Scenarios & Seeding
+  // ============ SCENARIOS & SEEDING ============
+
   getScenarios(): Promise<ScenariosResponse> {
     return firstValueFrom(this.http.get<ScenariosResponse>(`${this.baseUrl}/scenarios`));
   }
@@ -304,7 +316,27 @@ export class ApiService {
     return firstValueFrom(this.http.post<{ cleared: boolean }>(`${this.baseUrl}/seed/clear`, null));
   }
 
-  // Helper method to build HTTP params
+  // ============ KAFKA (scenario-aware) ============
+
+  getKafkaStatus(scenario?: string): Promise<KafkaStatus> {
+    const params = scenario ? this.buildHttpParams({ scenario }) : undefined;
+    return firstValueFrom(this.http.get<KafkaStatus>(`${this.baseUrl}/kafka/status`, { params }));
+  }
+
+  getKafkaMetrics(scenario?: string): Promise<KafkaMetrics> {
+    const params = scenario ? this.buildHttpParams({ scenario }) : undefined;
+    return firstValueFrom(this.http.get<KafkaMetrics>(`${this.baseUrl}/kafka/metrics`, { params }));
+  }
+
+  getKafkaTopics(scenario?: string): Promise<KafkaTopicsResponse> {
+    const params = scenario ? this.buildHttpParams({ scenario }) : undefined;
+    return firstValueFrom(
+      this.http.get<KafkaTopicsResponse>(`${this.baseUrl}/kafka/topics`, { params }),
+    );
+  }
+
+  // ============ HELPER ============
+
   private buildHttpParams(params?: any): HttpParams {
     let httpParams = new HttpParams();
     if (params) {
@@ -315,17 +347,5 @@ export class ApiService {
       });
     }
     return httpParams;
-  }
-  // Kafka endpoints
-  getKafkaStatus(): Promise<KafkaStatus> {
-    return firstValueFrom(this.http.get<KafkaStatus>(`${this.baseUrl}/kafka/status`));
-  }
-
-  getKafkaMetrics(): Promise<KafkaMetrics> {
-    return firstValueFrom(this.http.get<KafkaMetrics>(`${this.baseUrl}/kafka/metrics`));
-  }
-
-  getKafkaTopics(): Promise<KafkaTopicsResponse> {
-    return firstValueFrom(this.http.get<KafkaTopicsResponse>(`${this.baseUrl}/kafka/topics`));
   }
 }

@@ -1,58 +1,8 @@
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { ApiService } from '../../core/services/api.service';
-
-interface TopicMetric {
-  topic: string;
-  category: string;
-  messages_per_second: number;
-  partitions: number;
-  status: string;
-}
-
-interface ConsumerGroup {
-  group_id: string;
-  state: string;
-  members: number;
-  lag: number;
-  topics: string[];
-}
-
-interface PipelineStage {
-  id: string;
-  name: string;
-  status: string;
-}
-
-interface KafkaMetrics {
-  overview: {
-    total_messages_per_second: number;
-    messages_last_minute: number;
-    messages_last_5_minutes: number;
-    active_topics: number;
-    total_topics: number;
-  };
-  topics: TopicMetric[];
-  consumer_groups: ConsumerGroup[];
-  pipeline: {
-    producer: { status: string; service: string };
-    consumer: { status: string; service: string };
-    processor: { status: string; service: string };
-  };
-  timestamp: string;
-}
-
-interface KafkaStatus {
-  connected: boolean;
-  cluster_id: string;
-  broker_count: number;
-  bootstrap_server: string;
-  environment: string;
-  security_protocol: string;
-  error: string | null;
-  timestamp: string;
-}
+import { ApiService, KafkaMetrics, KafkaStatus } from '../../core/services/api.service';
+import { FreshrService } from '../../core/services/freshr.service';
 
 type ViewMode = 'overview' | 'topics' | 'pipeline';
 
@@ -64,11 +14,15 @@ type ViewMode = 'overview' | 'topics' | 'pipeline';
 })
 export class KafkaMetricsComponent implements OnInit, OnDestroy {
   api = inject(ApiService);
+  freshrService = inject(FreshrService);
 
   viewMode = signal<ViewMode>('overview');
   loading = signal(false);
   metrics = signal<KafkaMetrics | null>(null);
   status = signal<KafkaStatus | null>(null);
+
+  // Use the demo scenario ID directly from FreshrService
+  currentScenarioId = this.freshrService.demoScenarioId;
 
   viewModes = [
     { id: 'overview' as ViewMode, label: 'Overview' },
@@ -80,7 +34,6 @@ export class KafkaMetricsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadData();
-    // Auto-refresh every 10 seconds
     this.refreshInterval = setInterval(() => this.loadData(), 10000);
   }
 
@@ -93,15 +46,15 @@ export class KafkaMetricsComponent implements OnInit, OnDestroy {
   async loadData() {
     this.loading.set(true);
     try {
+      const scenario = this.currentScenarioId();
       const [statusRes, metricsRes] = await Promise.all([
-        this.api.getKafkaStatus(),
-        this.api.getKafkaMetrics(),
+        this.api.getKafkaStatus(scenario),
+        this.api.getKafkaMetrics(scenario),
       ]);
       this.status.set(statusRes);
       this.metrics.set(metricsRes);
     } catch (err) {
       console.error('Failed to load Kafka data:', err);
-      // Set fallback status
       this.status.set({
         connected: false,
         cluster_id: 'cluster_0',
