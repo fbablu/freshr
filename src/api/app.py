@@ -4,7 +4,7 @@ from flask import Flask
 from flask_cors import CORS
 from google.cloud import firestore
 
-from src.api.routes import anomalies, devices, measurements
+from src.api.routes import anomalies, devices, measurements, seed
 
 DEVICE_COLLECTION = os.getenv("DEVICE_COLLECTION", "device_measurements")
 ANOMALIES_COLLECTION = os.getenv("ANOMALIES_COLLECTION", "anomalies")
@@ -29,6 +29,7 @@ def create_app():
     measurements.register(app, db, DEVICE_COLLECTION)
     anomalies.register(app, db, ANOMALIES_COLLECTION, DEVICE_COLLECTION, firestore)
     devices.register(app, db, DEVICE_COLLECTION)
+    seed.register(app, db, DEVICE_COLLECTION, ANOMALIES_COLLECTION)
     return app
 
 
