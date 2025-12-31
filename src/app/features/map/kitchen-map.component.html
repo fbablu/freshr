@@ -1,15 +1,30 @@
-<!-- kitchen-map.component.html -->
 <div class="h-full flex gap-4 p-6">
   <!-- Kitchen Map Area -->
   <div class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6 flex flex-col">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-xl font-bold">Kitchen Layout</h2>
-      <button
-        (click)="resetView()"
-        class="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 rounded"
-      >
-        Reset View
-      </button>
+      <div>
+        <h2 class="text-xl font-bold">Kitchen Map</h2>
+        <p class="text-sm text-slate-600">{{ activeScenarioTitle() }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- Active incidents badge -->
+        @if (totalActiveIncidents() > 0) {
+          <div
+            class="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full"
+          >
+            <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            <span class="text-sm font-medium text-red-700">
+              {{ totalActiveIncidents() }} Active
+            </span>
+          </div>
+        }
+        <button
+          (click)="resetView()"
+          class="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+        >
+          Reset View
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 relative border border-slate-200 rounded overflow-hidden bg-slate-50">
@@ -22,13 +37,20 @@
       >
         <ko-layer>
           @for (zone of zones; track trackZone($index, zone)) {
+            <!-- Zone rectangle -->
             <ko-rect
               [config]="getZoneConfig(zone)"
               (click)="handleZoneClick($event, zone.id)"
               (mouseenter)="handleZoneMouseEnter($event)"
               (mouseleave)="handleZoneMouseLeave($event)"
             />
+            <!-- Zone label -->
             <ko-text [config]="getTextConfig(zone)" />
+            <!-- Incident count badge (circle) -->
+            @if (getBadgeConfig(zone).visible) {
+              <ko-circle [config]="getBadgeConfig(zone)" />
+              <ko-text [config]="getBadgeTextConfig(zone)" />
+            }
           }
         </ko-layer>
       </ko-stage>
@@ -39,27 +61,31 @@
       >
         {{ zoomLevel() }}%
       </div>
+
+      <!-- Legend -->
+      <div
+        class="absolute bottom-4 left-4 bg-white px-3 py-2 rounded shadow text-xs pointer-events-none"
+      >
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1">
+            <span class="w-3 h-3 rounded border-2 border-green-500 bg-green-50"></span>
+            <span class="text-slate-600">Normal</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="w-3 h-3 rounded border-2 border-yellow-500 bg-yellow-50"></span>
+            <span class="text-slate-600">At Risk</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="w-3 h-3 rounded border-2 border-red-500 bg-red-50"></span>
+            <span class="text-slate-600">Unsafe</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Right Panel -->
-  <div class="w-80 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-    <h3 class="font-bold mb-3">Active Incidents</h3>
-    <div *ngIf="incidentCount().length === 0" class="text-slate-500 text-sm">
-      No active incidents
-    </div>
-    <div *ngIf="incidentCount().length > 0" class="space-y-2">
-      <div
-        *ngFor="let incident of incidentCount()"
-        class="p-3 bg-amber-50 border border-amber-200 rounded-lg"
-      >
-        <p class="text-sm font-medium">{{ incident }}</p>
-      </div>
-    </div>
-
-    <div *ngIf="selectedZone()" class="mt-4 pt-4 border-t">
-      <h4 class="font-medium mb-2">Selected Zone</h4>
-      <p class="text-sm text-slate-600">{{ selectedZone() }}</p>
-    </div>
+  <!-- Right Panel - Zone Details -->
+  <div class="w-96 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <app-zone-detail-panel #detailPanel (close)="handleClosePanel()"></app-zone-detail-panel>
   </div>
 </div>

@@ -101,12 +101,24 @@ export interface DevicesResponse {
   devices: Device[];
 }
 
-export interface Incident {
+export interface IncidentAlert {
   anomaly: Anomaly;
   measurement: Measurement;
-  status: 'Open' | 'Acknowledged' | 'Resolved';
+  status: IncidentStatus;
   requiredAction: string;
-  zone_name: string; // resolved
+  zone_name: string;
+}
+
+export interface Incident {
+  id: string;
+  type: 'temperature_drift' | 'hygiene_failure' | 'cross_contamination' | 'time_violation';
+  title: string;
+  severity: 'critical' | 'warning' | 'info';
+  zones: string[];
+  timestamp: string;
+  sensors: string[];
+  actions: string[];
+  measurements: Measurement[];
 }
 
 export type IncidentStatus = 'Open' | 'Acknowledged' | 'Resolved';
