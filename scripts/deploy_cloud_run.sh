@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT="rich-archery-482201-b6"
 REGION="us-central1"
-REPO="dynamap"
+REPO="freshr"
 API_ONLY=false
 
 if [ "${1:-}" = "--api-only" ]; then
@@ -17,14 +17,14 @@ fi
 : "${KAFKA_SASL_USERNAME:?Set KAFKA_SASL_USERNAME}"
 : "${KAFKA_SASL_PASSWORD:?Set KAFKA_SASL_PASSWORD}"
 
-PRODUCER_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/dynamap-producer"
-CONSUMER_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/dynamap-consumer"
-PROCESSING_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/dynamap-processing"
-API_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/dynamap-api"
+PRODUCER_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/freshr-producer"
+CONSUMER_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/freshr-consumer"
+PROCESSING_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/freshr-processing"
+API_IMAGE="$REGION-docker.pkg.dev/$PROJECT/$REPO/freshr-api"
 
 if [ "$API_ONLY" != "true" ]; then
   echo "Deploying PROCESSOR as Cloud Run SERVICE"
-  gcloud run deploy dynamap-processing \
+  gcloud run deploy freshr-processing \
     --project "$PROJECT" \
     --region "$REGION" \
     --image "$PROCESSING_IMAGE" \
@@ -33,7 +33,7 @@ if [ "$API_ONLY" != "true" ]; then
     --min-instances=1
 
   echo "Deploying CONSUMER as Cloud Run SERVICE"
-  gcloud run deploy dynamap-consumer \
+  gcloud run deploy freshr-consumer \
     --project "$PROJECT" \
     --region "$REGION" \
     --image "$CONSUMER_IMAGE" \
@@ -42,7 +42,7 @@ if [ "$API_ONLY" != "true" ]; then
     --min-instances=1
 
   echo "Deploying PRODUCER as Cloud Run SERVICE"
-  gcloud run deploy dynamap-producer \
+  gcloud run deploy freshr-producer \
     --project "$PROJECT" \
     --region "$REGION" \
     --image "$PRODUCER_IMAGE" \
@@ -54,10 +54,10 @@ else
 fi
 
 echo "Deploying API SERVICE (HTTP)"
-gcloud run deploy dynamap-api \
+gcloud run deploy freshr-api \
   --project "$PROJECT" \
   --region "$REGION" \
   --image "$API_IMAGE" \
   --allow-unauthenticated \
   --set-env-vars \
-    DEVICE_COLLECTION=device_measurements,ANOMALIES_COLLECTION=anomalies
+    DEVICE_COLLECTION=device_measurements,ANOMALIES_COLLECTION=anomalies,GOOGLE_CLOUD_PROJECT=rich-archery-482201-b6,VERTEX_REGION=us-central1

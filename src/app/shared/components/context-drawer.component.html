@@ -1,0 +1,377 @@
+<div class="w-[500px] h-full bg-white border-l border-gray-200 flex flex-col" *ngIf="context()">
+  <!-- Header -->
+  <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+    <h3 class="font-semibold text-gray-900">
+      {{ getTitle() }}
+    </h3>
+    <button (click)="close()" class="p-1 hover:bg-gray-200 rounded transition-colors">
+      <lucide-icon name="x" [size]="20" class="text-gray-600"></lucide-icon>
+    </button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="border-b border-gray-200 bg-white">
+    <div class="flex">
+      <button
+        *ngFor="let tab of tabs"
+        (click)="setActiveTab(tab.id)"
+        class="flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2"
+        [ngClass]="{
+          'border-blue-600 text-blue-600': activeTab() === tab.id,
+          'border-transparent text-gray-600 hover:text-gray-900': activeTab() !== tab.id,
+        }"
+      >
+        <div class="flex items-center justify-center gap-2">
+          <lucide-icon [name]="tab.icon" [size]="16"></lucide-icon>
+          <span>{{ tab.label }}</span>
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="flex-1 overflow-y-auto">
+    <!-- Summary Tab -->
+    <div *ngIf="activeTab() === 'summary'" class="p-6 space-y-4">
+      <ng-container *ngIf="isIncident()">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span
+              class="px-2 py-1 rounded text-xs font-medium"
+              [ngClass]="getSeverityClasses(getIncident().anomaly.severity)"
+            >
+              {{ getIncident().anomaly.severity | uppercase }}
+            </span>
+            <span
+              class="px-2 py-1 rounded text-xs font-medium"
+              [ngClass]="getStatusClasses(getIncident().status)"
+            >
+              {{ getIncident().status }}
+            </span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Sensor Type</span>
+              <span class="font-medium">{{
+                formatSensorType(getIncident().anomaly.sensor_type)
+              }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Zone</span>
+              <span class="font-medium">{{ getZoneName(getIncident().anomaly.zone_id) }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Detected</span>
+              <span class="font-medium">{{
+                formatTimestamp(getIncident().anomaly.timestamp)
+              }}</span>
+            </div>
+            <div class="flex justify-between text-sm" *ngIf="getIncident().measurement">
+              <span class="text-gray-500">Value</span>
+              <span class="font-medium text-red-600">
+                {{ getIncident().measurement.measurement_value }}
+                {{ getIncident().measurement.measurement_type === 'celsius' ? '°C' : '' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t">
+            <h4 class="text-sm font-medium text-gray-900 mb-2">Recommended Action</h4>
+            <p class="text-sm text-gray-600">{{ getIncident().action }}</p>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="isZone()">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span
+              class="px-2 py-1 rounded text-xs font-medium"
+              [ngClass]="getZoneStateClasses(getZone().state)"
+            >
+              {{ getZone().state | uppercase }}
+            </span>
+          </div>
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Zone</span>
+              <span class="font-medium">{{ getZone().name }}</span>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+
+    <!-- Signals Tab -->
+    <div *ngIf="activeTab() === 'signals'" class="p-6">
+      <p class="text-sm text-gray-500">Signal history for this context.</p>
+    </div>
+
+    <!-- Replay Tab -->
+    <div *ngIf="activeTab() === 'replay'" class="p-6">
+      <div class="mb-4">
+        <input
+          type="range"
+          [min]="0"
+          [max]="replayEvents().length - 1"
+          [value]="replayPosition()"
+          (input)="onReplayChange($event)"
+          class="w-full"
+        />
+      </div>
+      <div class="space-y-3">
+        <div
+          *ngFor="let event of replayEvents(); let i = index"
+          class="flex items-start gap-3 p-3 rounded-lg transition-all"
+          [ngClass]="{
+            'bg-blue-50 border-2 border-blue-500': i === replayPosition(),
+            'bg-gray-50 opacity-60': i < replayPosition(),
+            'bg-white opacity-40': i > replayPosition(),
+          }"
+        >
+          <div
+            class="p-2 rounded-lg"
+            [ngClass]="{
+              'bg-blue-100': i === replayPosition(),
+              'bg-gray-100': i !== replayPosition(),
+            }"
+          >
+            <lucide-icon
+              [name]="event.icon"
+              [size]="16"
+              [ngClass]="{
+                'text-blue-600': i === replayPosition(),
+                'text-gray-600': i !== replayPosition(),
+              }"
+            ></lucide-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div
+              class="text-sm font-medium"
+              [ngClass]="{
+                'text-blue-900': i === replayPosition(),
+                'text-gray-900': i !== replayPosition(),
+              }"
+            >
+              {{ event.label }}
+            </div>
+            <div
+              class="text-xs mt-1"
+              [ngClass]="{
+                'text-blue-700': i === replayPosition(),
+                'text-gray-500': i !== replayPosition(),
+              }"
+            >
+              {{ formatTimestamp(event.timestamp) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Explanation Tab -->
+    <div *ngIf="activeTab() === 'ai'" class="p-6">
+      <!-- Loading State - Skeuomorphic -->
+      <div *ngIf="aiLoading()" class="space-y-6">
+        <div class="flex flex-col items-center justify-center py-8">
+          <!-- Animated Brain Icon -->
+          <div class="relative mb-6">
+            <div
+              class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg animate-pulse"
+            >
+              <lucide-icon name="brain" [size]="36" class="text-white"></lucide-icon>
+            </div>
+            <!-- Orbiting dots -->
+            <div class="absolute inset-0 animate-spin" style="animation-duration: 3s">
+              <div
+                class="absolute -top-1 left-1/2 w-2 h-2 bg-indigo-400 rounded-full transform -translate-x-1/2"
+              ></div>
+            </div>
+            <div
+              class="absolute inset-0 animate-spin"
+              style="animation-duration: 2s; animation-direction: reverse"
+            >
+              <div
+                class="absolute top-1/2 -right-1 w-2 h-2 bg-purple-400 rounded-full transform -translate-y-1/2"
+              ></div>
+            </div>
+            <div class="absolute inset-0 animate-spin" style="animation-duration: 4s">
+              <div
+                class="absolute -bottom-1 left-1/2 w-2 h-2 bg-pink-400 rounded-full transform -translate-x-1/2"
+              ></div>
+            </div>
+          </div>
+
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Analyzing Incident</h3>
+          <p class="text-sm text-gray-500 text-center max-w-xs">
+            Gemini is reviewing sensor data, safety protocols, and generating actionable guidance...
+          </p>
+
+          <!-- Animated progress bars -->
+          <div class="w-full max-w-xs mt-6 space-y-2">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span class="text-xs text-gray-600">Analyzing sensor readings</span>
+            </div>
+            <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-loading-bar"
+              ></div>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <div
+                class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"
+                style="animation-delay: 0.5s"
+              ></div>
+              <span class="text-xs text-gray-600">Checking FDA/HACCP guidelines</span>
+            </div>
+            <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-loading-bar"
+                style="animation-delay: 0.3s"
+              ></div>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <div
+                class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                style="animation-delay: 1s"
+              ></div>
+              <span class="text-xs text-gray-600">Generating recommendations</span>
+            </div>
+            <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-pink-500 to-indigo-500 rounded-full animate-loading-bar"
+                style="animation-delay: 0.6s"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div *ngIf="aiError() && !aiLoading()" class="text-center py-8">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-100 flex items-center justify-center">
+          <lucide-icon name="alert-circle" [size]="32" class="text-red-600"></lucide-icon>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Analysis Failed</h3>
+        <p class="text-sm text-red-600 mb-4">{{ aiError() }}</p>
+        <button
+          (click)="loadAIExplanation()"
+          class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+
+      <!-- AI Explanation Content -->
+      <div *ngIf="aiExplanation() && !aiLoading() && !aiError()" class="space-y-6">
+        <!-- Source Badge -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div
+              class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center"
+            >
+              <lucide-icon name="sparkles" [size]="16" class="text-white"></lucide-icon>
+            </div>
+            <span class="text-sm font-medium text-gray-900">Gemini Analysis</span>
+          </div>
+          <button
+            (click)="loadAIExplanation()"
+            class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Regenerate"
+          >
+            <lucide-icon name="refresh-cw" [size]="16" class="text-gray-500"></lucide-icon>
+          </button>
+        </div>
+
+        <!-- What Happened -->
+        <div class="p-4 bg-red-50 rounded-xl border border-red-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+              <lucide-icon name="alert-triangle" [size]="16" class="text-red-700"></lucide-icon>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900">What Happened</h4>
+          </div>
+          <p class="text-sm text-gray-700 leading-relaxed">
+            {{ aiExplanation()!.what_happened }}
+          </p>
+        </div>
+
+        <!-- Why It Matters -->
+        <div class="p-4 bg-orange-50 rounded-xl border border-orange-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+              <lucide-icon name="shield-alert" [size]="16" class="text-orange-700"></lucide-icon>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900">Why It Matters</h4>
+          </div>
+          <p class="text-sm text-gray-700 leading-relaxed">
+            {{ aiExplanation()!.why_it_matters }}
+          </p>
+        </div>
+
+        <!-- What To Do -->
+        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <lucide-icon name="clipboard-list" [size]="16" class="text-blue-700"></lucide-icon>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900">What To Do</h4>
+          </div>
+          <ul class="space-y-2">
+            <li
+              *ngFor="let action of aiExplanation()!.what_to_do; let i = index"
+              class="flex items-start gap-3 text-sm text-gray-700"
+            >
+              <span
+                class="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-medium flex items-center justify-center"
+              >
+                {{ i + 1 }}
+              </span>
+              <span>{{ action }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Confirm Recovery -->
+        <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+              <lucide-icon name="check-circle-2" [size]="16" class="text-green-700"></lucide-icon>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900">Confirm Recovery</h4>
+          </div>
+          <p class="text-sm text-gray-700 leading-relaxed">
+            {{ aiExplanation()!.confirm_recovery }}
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-4 border-t border-gray-200 flex items-center justify-between">
+          <span class="inline-flex items-center gap-2 text-xs text-gray-500">
+            <lucide-icon name="sparkles" [size]="12"></lucide-icon>
+            Powered by Gemini AI
+          </span>
+          <span class="text-xs text-gray-400">
+            {{ formatTimestamp(currentTime()) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- No Incident State -->
+      <div
+        *ngIf="!aiExplanation() && !aiLoading() && !aiError() && !isIncident()"
+        class="text-center py-12"
+      >
+        <div
+          class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center"
+        >
+          <lucide-icon name="brain" [size]="32" class="text-gray-400"></lucide-icon>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">No Incident Selected</h3>
+        <p class="text-sm text-gray-500">Select an incident to generate an AI explanation.</p>
+      </div>
+    </div>
+  </div>
+</div>

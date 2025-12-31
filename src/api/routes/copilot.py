@@ -2,13 +2,18 @@ import os
 import json
 from flask import jsonify, request
 
+# Initialize Vertex AI availability
+VERTEX_AVAILABLE = False
+VERTEX_INIT_ERROR = None
+
 try:
     import vertexai
     from vertexai.generative_models import GenerativeModel
 
     VERTEX_AVAILABLE = True
-except ImportError:
-    VERTEX_AVAILABLE = False
+except ImportError as e:
+    VERTEX_INIT_ERROR = f"vertexai import failed: {e}"
+    print(f"[COPILOT] {VERTEX_INIT_ERROR}")
 
 
 # Pre-built explanations for demo reliability (fallback if Gemini unavailable)
@@ -63,62 +68,108 @@ FALLBACK_EXPLANATIONS = {
 }
 
 
-def get_gemini_explanation(anomaly_data: dict, measurement_data: dict) -> dict:
-    """Call Gemini to generate contextual explanation."""
+def get_gemini_explanation(
+    anomaly_data: dict, measurement_data: dict
+) -> tuple[dict | None, str | None]:
+    """
+    Call Gemini to generate contextual explanation.
+    Returns (explanation_dict, error_string) - one will be None.
+    """
     if not VERTEX_AVAILABLE:
-        return None
+        return None, f"Vertex SDK not available: {VERTEX_INIT_ERROR}"
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "rich-archery-482201-b6")
     location = os.getenv("VERTEX_REGION", "us-central1")
 
+    print("[COPILOT] Calling Gemini - project={project_id}, location={location}")
+
+    text = ""
     try:
         vertexai.init(project=project_id, location=location)
-        model = GenerativeModel("gemini-1.5-flash")
+        model = GenerativeModel("gemini-2.5-pro")
 
-        prompt = f"""You are a food safety expert AI assistant for restaurant kitchens. 
-Analyze this anomaly and provide a structured explanation.
+        # Build a detailed prompt
+        sensor_type = anomaly_data.get("sensor_type", "unknown")
+        severity = anomaly_data.get("severity", "medium")
+        zone_id = measurement_data.get("zone_id", "unknown")
+        value = measurement_data.get("measurement_value", "N/A")
+        unit = measurement_data.get("measurement_type", "")
+        timestamp = anomaly_data.get("timestamp", "unknown")
 
-ANOMALY DATA:
-- Sensor Type: {anomaly_data.get('sensor_type', 'unknown')}
-- Severity: {anomaly_data.get('severity', 'medium')}
-- Zone: {measurement_data.get('zone_id', 'unknown')}
-- Current Value: {measurement_data.get('measurement_value', 'N/A')} {measurement_data.get('measurement_type', '')}
-- Timestamp: {anomaly_data.get('timestamp', 'unknown')}
+        prompt = f"""You are a food safety expert AI assistant for commercial kitchens.
+Analyze this anomaly and provide actionable guidance for kitchen staff.
 
-Respond in this exact JSON format:
+ANOMALY DETAILS:
+- Sensor Type: {sensor_type}
+- Severity: {severity}
+- Kitchen Zone: {zone_id}
+- Current Reading: {value} {unit}
+- Detection Time: {timestamp}
+
+Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 {{
-    "what_happened": "One paragraph explaining what the sensor detected",
-    "why_it_matters": "One paragraph on food safety implications with specific bacteria/risks",
-    "what_to_do": ["Action 1", "Action 2", "Action 3", "Action 4"],
-    "confirm_recovery": "How to verify the issue is resolved"
+    "what_happened": "Clear 1-2 sentence explanation of what the sensor detected and why it's abnormal",
+    "why_it_matters": "Food safety implications - mention specific pathogens, FDA guidelines, or HACCP requirements",
+    "what_to_do": ["Immediate action 1", "Action 2", "Action 3", "Action 4"],
+    "confirm_recovery": "Specific criteria to verify the issue is resolved"
 }}
 
-Be specific, actionable, and reference FDA/HACCP guidelines where relevant."""
+Be specific and practical. Reference actual food safety standards."""
 
+        print("[COPILOT] Sending prompt to Gemini...")
         response = model.generate_content(prompt)
 
-        # Parse JSON from response
+        if not response:
+            return None, "Gemini returned no response object"
+
+        if not response.text:
+            # Check for blocked content
+            if hasattr(response, "prompt_feedback"):
+                return None, f"Gemini blocked: {response.prompt_feedback}"
+            return None, "Gemini returned empty text"
+
         text = response.text.strip()
-        # Handle markdown code blocks
+        print("[COPILOT] Gemini response: {text[:300]}...")
+
+        # Handle markdown code blocks if present
         if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
+            parts = text.split("```")
+            if len(parts) >= 2:
+                text = parts[1]
+                if text.lower().startswith("json"):
+                    text = text[4:].strip()
+                text = text.strip()
 
-        return json.loads(text)
+        result = json.loads(text)
+        print("[COPILOT] Successfully parsed Gemini response")
+        return result, None
 
+    except json.JSONDecodeError as e:
+        return None, f"JSON parse error: {e}. Raw: {text[:200]}"
     except Exception as e:
-        print(f"Gemini API error: {e}")
-        return None
+        return None, f"{type(e).__name__}: {e}"
 
 
 def register(app, db, anomalies_collection: str, measurements_collection: str):
     """Register copilot routes."""
 
+    @app.route("/copilot/status", methods=["GET"])
+    def copilot_status():
+        """Check copilot/Gemini availability."""
+        return jsonify(
+            {
+                "vertex_available": VERTEX_AVAILABLE,
+                "init_error": VERTEX_INIT_ERROR,
+                "project": os.getenv("GOOGLE_CLOUD_PROJECT", "not set"),
+                "region": os.getenv("VERTEX_REGION", "not set"),
+            }
+        )
+
     @app.route("/copilot/explain", methods=["POST"])
     def explain_anomaly():
-        """Generate AI explanation for an anomaly."""
+        """Generate AI explanation for an anomaly. Always tries Gemini first."""
         data = request.get_json() or {}
+        use_fallback = data.get("use_fallback", False)  # Explicit opt-in to fallback
 
         anomaly_id = data.get("anomaly_id")
         sensor_type = data.get("sensor_type")
@@ -126,7 +177,6 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
         zone_id = data.get("zone_id")
         severity = data.get("severity", "medium")
 
-        # Build context
         anomaly_data = {
             "id": anomaly_id,
             "sensor_type": sensor_type,
@@ -140,49 +190,68 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
             "zone_id": zone_id,
         }
 
-        # Try Gemini first
-        explanation = get_gemini_explanation(anomaly_data, measurement_data)
+        # Try Gemini
+        explanation, error = get_gemini_explanation(anomaly_data, measurement_data)
 
-        # Fallback to pre-built explanations
-        if not explanation:
+        if explanation:
+            return jsonify(
+                {
+                    "explanation": explanation,
+                    "source": "gemini",
+                    "anomaly_id": anomaly_id,
+                }
+            )
+
+        # Gemini failed - return error or fallback
+        if use_fallback:
             fallback_key = (
                 sensor_type if sensor_type in FALLBACK_EXPLANATIONS else "default"
             )
-            explanation = FALLBACK_EXPLANATIONS[fallback_key].copy()
-
-            # Customize with actual values
+            fallback = FALLBACK_EXPLANATIONS[fallback_key].copy()
             if (
                 measurement_value is not None
                 and sensor_type == "cold_storage_temperature"
             ):
-                explanation["what_happened"] = (
-                    f"Cold storage temperature reached {measurement_value}°C, exceeding the safe threshold of 5°C. This indicates potential refrigeration issues requiring immediate attention."
+                fallback["what_happened"] = (
+                    f"Cold storage temperature reached {measurement_value}°C, "
+                    f"exceeding the safe threshold of 5°C."
                 )
+            return jsonify(
+                {
+                    "explanation": fallback,
+                    "source": "fallback",
+                    "gemini_error": error,
+                    "anomaly_id": anomaly_id,
+                }
+            )
 
-        return jsonify(
-            {
-                "explanation": explanation,
-                "source": "gemini" if VERTEX_AVAILABLE else "fallback",
-                "anomaly_id": anomaly_id,
-            }
+        # No fallback - return error
+        return (
+            jsonify(
+                {
+                    "error": "Gemini call failed",
+                    "gemini_error": error,
+                    "source": "none",
+                    "anomaly_id": anomaly_id,
+                }
+            ),
+            500,
         )
 
     @app.route("/copilot/explain/<anomaly_id>", methods=["GET"])
     def explain_anomaly_by_id(anomaly_id: str):
         """Fetch anomaly by ID and generate explanation."""
-        # Get anomaly from Firestore
-        doc = db.collection(anomalies_collection).document(anomaly_id).get()
+        use_fallback = request.args.get("fallback", "false").lower() == "true"
 
+        doc = db.collection(anomalies_collection).document(anomaly_id).get()
         if not doc.exists:
             return jsonify({"error": "Anomaly not found"}), 404
 
         anomaly_data = doc.to_dict()
         anomaly_data["id"] = doc.id
 
-        # Get associated measurement
         measurement_id = anomaly_data.get("measurement_id")
         measurement_data = {}
-
         if measurement_id:
             m_doc = (
                 db.collection(measurements_collection).document(measurement_id).get()
@@ -190,21 +259,67 @@ def register(app, db, anomalies_collection: str, measurements_collection: str):
             if m_doc.exists:
                 measurement_data = m_doc.to_dict()
 
-        # Generate explanation
-        explanation = get_gemini_explanation(anomaly_data, measurement_data)
+        explanation, error = get_gemini_explanation(anomaly_data, measurement_data)
 
-        if not explanation:
+        if explanation:
+            return jsonify(
+                {
+                    "explanation": explanation,
+                    "source": "gemini",
+                    "anomaly": anomaly_data,
+                    "measurement": measurement_data,
+                }
+            )
+
+        if use_fallback:
             sensor_type = anomaly_data.get("sensor_type", "default")
             fallback_key = (
                 sensor_type if sensor_type in FALLBACK_EXPLANATIONS else "default"
             )
-            explanation = FALLBACK_EXPLANATIONS[fallback_key]
+            return jsonify(
+                {
+                    "explanation": FALLBACK_EXPLANATIONS[fallback_key],
+                    "source": "fallback",
+                    "gemini_error": error,
+                    "anomaly": anomaly_data,
+                    "measurement": measurement_data,
+                }
+            )
+
+        return (
+            jsonify(
+                {
+                    "error": "Gemini call failed",
+                    "gemini_error": error,
+                    "anomaly": anomaly_data,
+                    "measurement": measurement_data,
+                }
+            ),
+            500,
+        )
+
+    @app.route("/copilot/test", methods=["GET"])
+    def test_gemini():
+        """Test endpoint to verify Gemini is working."""
+        test_anomaly = {
+            "sensor_type": "cold_storage_temperature",
+            "severity": "high",
+            "timestamp": "2025-01-01T12:00:00Z",
+        }
+        test_measurement = {
+            "measurement_value": 8.5,
+            "measurement_type": "°C",
+            "zone_id": "cold_storage",
+        }
+
+        explanation, error = get_gemini_explanation(test_anomaly, test_measurement)
 
         return jsonify(
             {
+                "vertex_available": VERTEX_AVAILABLE,
+                "init_error": VERTEX_INIT_ERROR,
+                "test_result": "success" if explanation else "failed",
+                "gemini_error": error,
                 "explanation": explanation,
-                "source": "gemini" if VERTEX_AVAILABLE else "fallback",
-                "anomaly": anomaly_data,
-                "measurement": measurement_data,
             }
         )
