@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "dist/freshr/browser",
+    "public": "dist/freshr",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
