@@ -31,6 +31,8 @@ def create_app():
             "https://freshr-482201-b6.firebaseapp.com",
             "https://rich-archery-482201-b6.web.app",
             "https://rich-archery-482201-b6.firebaseapp.com",
+            "https://freshr.web.app",
+            "https://freshr.firebaseapp.com",
         ],
     )
 
