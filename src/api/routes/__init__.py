@@ -6,3 +6,4 @@ from . import seed as seed
 from . import utils as utils
 from . import social as social
 from . import copilot as copilot
+from . import kafka as kafka

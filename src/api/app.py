@@ -4,7 +4,15 @@ from flask import Flask
 from flask_cors import CORS
 from google.cloud import firestore
 
-from src.api.routes import anomalies, devices, measurements, seed, copilot, social
+from src.api.routes import (
+    anomalies,
+    devices,
+    measurements,
+    seed,
+    copilot,
+    social,
+    kafka,
+)
 
 DEVICE_COLLECTION = os.getenv("DEVICE_COLLECTION", "device_measurements")
 ANOMALIES_COLLECTION = os.getenv("ANOMALIES_COLLECTION", "anomalies")
@@ -21,8 +29,8 @@ def create_app():
             "http://localhost:4201",
             "https://freshr-482201-b6.web.app",
             "https://freshr-482201-b6.firebaseapp.com",
-            "https://rich-archery-482201-b6.web.app",  # ADD THIS
-            "https://rich-archery-482201-b6.firebaseapp.com",  # ADD THIS
+            "https://rich-archery-482201-b6.web.app",
+            "https://rich-archery-482201-b6.firebaseapp.com",
         ],
     )
 
@@ -35,6 +43,7 @@ def create_app():
     seed.register(app, db, DEVICE_COLLECTION, ANOMALIES_COLLECTION)
     copilot.register(app, db, ANOMALIES_COLLECTION, DEVICE_COLLECTION)
     social.register(app)
+    kafka.register(app, db, DEVICE_COLLECTION)
 
     # Health check
     @app.route("/healthz", methods=["GET"])
@@ -57,6 +66,10 @@ def create_app():
                 "/social/signals?scenario=ecoli",
                 "/social/timeline?scenario=ecoli",
                 "/social/correlation?scenario=ecoli",
+                "/kafka/status",
+                "/kafka/metrics",
+                "/kafka/topics",
+                "/kafka/pipeline",
             ],
         }
 

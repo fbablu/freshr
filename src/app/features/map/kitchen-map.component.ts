@@ -18,6 +18,7 @@ import { DemoControlsComponent } from '../../shared/components/demo-controls.com
 import { ZONE_DISPLAY_NAMES } from '../../config/sensor-zone-mapping';
 import { ZoneState } from '../../core/models/types';
 import Konva from 'konva';
+import { KafkaMetricsComponent } from '../../shared/components/kafka-metrics.component';
 
 interface Zone {
   id: string;
@@ -91,6 +92,7 @@ interface Bounds {
     ZoneDetailPanelComponent,
     SocialSignalsComponent,
     DemoControlsComponent,
+    KafkaMetricsComponent,
   ],
   templateUrl: './kitchen-map.component.html',
   styleUrls: ['./kitchen-map.component.css'],

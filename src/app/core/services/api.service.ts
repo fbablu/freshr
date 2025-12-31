@@ -91,6 +91,64 @@ export interface SeedResponse {
   timestamp: string;
 }
 
+// ============ KAFKA TYPES ============
+
+export interface TopicMetric {
+  topic: string;
+  category: string;
+  messages_per_second: number;
+  partitions: number;
+  status: string;
+}
+
+export interface ConsumerGroup {
+  group_id: string;
+  state: string;
+  members: number;
+  lag: number;
+  topics: string[];
+}
+
+export interface KafkaMetrics {
+  overview: {
+    total_messages_per_second: number;
+    messages_last_minute: number;
+    messages_last_5_minutes: number;
+    active_topics: number;
+    total_topics: number;
+  };
+  topics: TopicMetric[];
+  consumer_groups: ConsumerGroup[];
+  pipeline: {
+    producer: { status: string; service: string };
+    consumer: { status: string; service: string };
+    processor: { status: string; service: string };
+  };
+  timestamp: string;
+}
+
+export interface KafkaStatus {
+  connected: boolean;
+  cluster_id: string;
+  broker_count: number;
+  bootstrap_server: string;
+  environment: string;
+  security_protocol: string;
+  error: string | null;
+  timestamp: string;
+}
+
+export interface KafkaTopic {
+  name: string;
+  partitions: number;
+  category: string;
+}
+
+export interface KafkaTopicsResponse {
+  topics: KafkaTopic[];
+  count: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -257,5 +315,17 @@ export class ApiService {
       });
     }
     return httpParams;
+  }
+  // Kafka endpoints
+  getKafkaStatus(): Promise<KafkaStatus> {
+    return firstValueFrom(this.http.get<KafkaStatus>(`${this.baseUrl}/kafka/status`));
+  }
+
+  getKafkaMetrics(): Promise<KafkaMetrics> {
+    return firstValueFrom(this.http.get<KafkaMetrics>(`${this.baseUrl}/kafka/metrics`));
+  }
+
+  getKafkaTopics(): Promise<KafkaTopicsResponse> {
+    return firstValueFrom(this.http.get<KafkaTopicsResponse>(`${this.baseUrl}/kafka/topics`));
   }
 }
