@@ -1,238 +1,107 @@
 # Freshr
 
-Food safety, powered by data in motion.
+**Real-time food safety monitoring powered by AI on data in motion.**
 
-Freshr uses real-time streaming sensor data and AI to detect food safety risks in kitchen before they reach guests.
+Freshr detects contamination risks in commercial kitchens *before* food reaches guests—using streaming sensor data on Confluent and AI-assisted anomaly detection on Google Cloud.
 
-Freshr is a real-time food safety monitoring system that detects kitchen risks before they reach guests. Using streaming sensor data powered by Confluent and AI-assisted anomaly detection on Google Cloud, Freshr transforms live kitchen telemetry into actionable safety insights. The system demonstrates how AI on data in motion can enable proactive intervention, improve compliance, and reduce the risk of foodborne incidents in commercial kitchens.
+🔗 **Live Demo:** [freshr.web.app](https://freshr.web.app/map)
+
+
+<p align="center">
+  <a href="https://www.confluent.io/" target="_blank"><img src="https://img.shields.io/badge/Confluent-000000?style=for-the-badge&logo=apache-kafka&logoColor=white" alt="Confluent"></a>
+  <a href="https://cloud.google.com/vertex-ai" target="_blank"><img src="https://img.shields.io/badge/Vertex_AI-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Vertex AI"></a>
+  <a href="https://firebase.google.com/" target="_blank"><img src="https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Firebase"></a>
+  <a href="https://angular.io/" target="_blank"><img src="https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Angular"></a>
+  <a href="https://www.python.org/" target="_blank"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://flask.palletsprojects.com/" target="_blank"><img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask"></a>
+</p>
+
+
+---
+
+## Problem
+
+Foodborne illness outbreaks are detected too late. The October 2024 McDonald's E. coli outbreak sickened 100+ people across 14 states before the source was identified. Traditional monitoring relies on periodic inspections and reactive testing.
+
+## Solution
+
+Freshr applies AI to real-time kitchen telemetry to catch risks as they emerge:
+
+- **Temperature drift** in cold storage before spoilage occurs
+- **Hygiene compliance gaps** (handwash, sanitization) during busy periods  
+- **Cross-contamination risks** across zones and batches
+
+When anomalies are detected, Freshr generates actionable incidents with AI-powered explanations and recommended actions (hold, discard, sanitize, retrain).
 
 ---
 
 ## Architecture
 
-Sensors → Kafka (Confluent) → Processor → Firestore → API → Web UI
+```
+Kitchen Sensors → Kafka (Confluent Cloud) → Processor → Firestore → API → Angular UI
+                                              ↓
+                                    Gemini (Vertex AI)
+                                    Anomaly Explanations
+```
 
-**Tech stack**
+**Confluent Cloud** streams sensor events across dedicated topics (`sensor-physical-*`, `sensor-operational-*`) with a processing pipeline that detects anomalies in real-time.
 
-- Kafka / Confluent
-- Google Cloud Run
-- Google Firestore
-- Angular + Firebase Hosting
-- Datadog (WIP)
-- Gemini / Vertex AI (WIP)
+**Google Cloud** powers the backend (Cloud Run), data persistence (Firestore), and AI reasoning (Vertex AI / Gemini) for contextual explanations and recommendations.
 
 ---
 
-## Backend
+## Tech Stack
 
-### Sensor Model
-
-**Physical sensors**
-
-- cold_storage_temperature
-- ambient_kitchen_temperature
-- humidity
-- time_out_of_range_duration
-
-**Operational sensors**
-
-- handwash_station_usage
-- delivery_arrival
-- shift_change
-
-Each sensor type publishes to its own Kafka topic:
-
-- `sensor-physical-*`
-- `sensor-operational-*`
-
-All processed events are forwarded to:
-
-- `sensor-events-processed`
-
-Schemas live in:
-
-```
-
-src/datastream/schemas/
-
-```
+| Layer | Technology |
+|-------|------------|
+| Streaming | Kafka / Confluent Cloud |
+| Backend | Python Flask on Cloud Run |
+| Database | Google Firestore |
+| AI | Vertex AI / Gemini |
+| Frontend | Angular 18 + Tailwind |
+| Hosting | Firebase Hosting |
 
 ---
 
-### Local Setup
+## Demo Scenarios
 
-```
+The live demo includes simulations based on real outbreak patterns:
 
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-pip install -r requirements.txt
-
-```
+- **McDonald's E. coli (Oct 2024)** — Multi-zone contamination cascade
+- **Temperature Drift** — Refrigeration failure simulation
+- **Hygiene Failure** — Compliance drops during rush periods
+- **Recovery Mode** — System returning to healthy baseline
 
 ---
 
-### Checks (tests, format, lint)
+## Local Development
 
-```
-
-./scripts/run_checks.sh
-
-```
-
----
-
-### Cloud Build & Deploy
-
-Build and push images:
-
-```
-
-./scripts/build_cloud.sh
-./scripts/build_cloud.sh --api-only
-
-```
-
-Set Kafka environment variables:
-
-```
-
-export KAFKA_BOOTSTRAP=<cluster>.confluent.cloud:9092
-export KAFKA_SECURITY_PROTOCOL=SASL_SSL
-export KAFKA_SASL_MECHANISM=PLAIN
-export KAFKA_SASL_USERNAME=<API_KEY>
-export KAFKA_SASL_PASSWORD=<API_SECRET>
-
-```
-
-Deploy services:
-
-```
-source .env
-./scripts/deploy_cloud_run.sh
-./scripts/deploy_cloud_run.sh --api-only
-
-```
-
-Tear down services:
-
-```
-
-./scripts/delete_cloud_run.sh
-./scripts/delete_cloud_run.sh --skip-api
-
-```
-
-Producer, consumer, and processor run as long-lived services with a `/healthz` endpoint.
-
----
-
-### Backend Behavior
-
-- Consumer writes raw events to `device_measurements`
-- Processor flags anomalies and writes to `anomalies`
-- Measurement documents are annotated with anomaly metadata
-- Designed for continuous workloads (Cloud Run with min instances > 0 or GKE)
-
----
-
-### API (Cloud Run)
-
-**Measurements**
-
-```
-
-GET /measurements/recent
-
-```
-
-**Anomalies**
-
-```
-
-GET /anomalies/recent
-
-```
-
-Example:
-
-```
-
-curl [https://dynamap-api-lfc277t73a-uc.a.run.app/measurements/recent](https://dynamap-api-lfc277t73a-uc.a.run.app/measurements/recent)
-curl [https://dynamap-api-lfc277t73a-uc.a.run.app/anomalies/recent](https://dynamap-api-lfc277t73a-uc.a.run.app/anomalies/recent)
-
-```
-
-Additional API documentation:
-
-```
-
-src/api/README.md
-
-```
-
----
-
-## Frontend
-
-Hosted at:
-
-```
-
-[https://freshr-482201-b6.web.app](https://freshr-482201-b6.web.app)
-
-```
-
-### Setup
-
-Requires `pnpm`.
-
-```
-
+```bash
+# Frontend
 pnpm install
-ng build
 ng serve
 
+# Backend (requires Kafka credentials)
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Deploy:
+---
 
-```
+## Deployment
 
+```bash
+# Build and deploy to Google Cloud
+./scripts/build_cloud.sh --api-only
+source .env
+./scripts/deploy_cloud_run.sh --api-only
+
+# Frontend
 firebase deploy
-
 ```
-
----
-
-### UI Features
-
-- Kitchen and zone health
-- Recent sensor data
-- Active anomalies
-- Incident context (when enabled)
-- Simulated demo events
-
----
-
-### Demo / Simulation
-
-The simulator can generate:
-
-- Normal operations
-- Hygiene failures
-- Temperature drift
-- Cross-contamination scenarios
-- Recovery events
-
-Used to trigger monitors and anomalies in real time.
 
 ---
 
 ## License
 
-MIT License
-
-```
-
-```
+MIT
